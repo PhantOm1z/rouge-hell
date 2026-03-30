@@ -1,0 +1,97 @@
+class_name EnemyBase
+extends CharacterBody2D
+
+## Base class for all enemies
+## Designed for mobile optimization: 
+## - Disables processing if off-screen (VisibleOnScreenNotifier2D)
+## - Built to be pooled, not instantiated and freed repeatedly
+
+@export var data: EnemyData
+
+# Unique Names (%NodeName) used to avoid brittle paths
+@onready var sprite: Sprite2D = %Sprite2D
+@onready var hit_box: Area2D = %HitBox
+@onready var visibility_notifier: VisibleOnScreenNotifier2D = %VisibilityNotifier
+
+var current_health: float = 0.0
+var path_points: PackedVector2Array = []
+var current_path_index: int = 0
+
+func _ready() -> void:
+	if data:
+		setup(data)
+	
+	# Listen to visibility changes for optimization
+	if visibility_notifier:
+		visibility_notifier.screen_exited.connect(_on_screen_exited)
+		visibility_notifier.screen_entered.connect(_on_screen_entered)
+
+## Called when acquiring from the ObjectPool and giving it a data template
+func setup(enemy_data: EnemyData) -> void:
+	data = enemy_data
+	current_health = data.max_health
+	
+	if sprite and data.sprite_texture:
+		sprite.texture = data.sprite_texture
+		
+	current_path_index = 0
+	
+	# Re-enable if it was disabled by visibility
+	set_physics_process(true)
+
+## Set the path it must follow (e.g. from the map level)
+func set_path_points(points: PackedVector2Array) -> void:
+	path_points = points
+	current_path_index = 0
+
+func _physics_process(delta: float) -> void:
+	if data == null or current_health <= 0: return
+	
+	_move_along_path(delta)
+
+func _move_along_path(delta: float) -> void:
+	if current_path_index >= path_points.size():
+		# Reached the end (e.g., player base)
+		_reach_base()
+		return
+		
+	var target_pos: Vector2 = path_points[current_path_index]
+	var dir: Vector2 = global_position.direction_to(target_pos)
+	
+	# Move
+	velocity = dir * data.move_speed
+	move_and_slide()
+	
+	# Check if close enough to waypoint to move to next
+	if global_position.distance_squared_to(target_pos) < 100.0: # ~10 pixels
+		current_path_index += 1
+
+func take_damage(amount: float) -> void:
+	current_health -= amount
+	if current_health <= 0:
+		_die()
+
+func _die() -> void:
+	current_health = 0
+	set_physics_process(false)
+	# Signal Up -> Let Level / WaveManager handle gold reward and releasing to pool
+	Events.enemy_died.emit(self, data.gold_reward)
+
+func _reach_base() -> void:
+	Events.base_damaged.emit(data.base_damage)
+	# Dying at base yields no gold normally, but releasing handles cleanup
+	Events.enemy_died.emit(self, 0)
+
+# --- Mobile Optimization ---
+# When enemy leaves the screen view entirely, pause processing (unless they must move offscreen).
+# In a TD, enemies often stay on-screen, but this saves CPU if they haven't entered yet or exit bounds.
+func _on_screen_exited() -> void:
+	# If using ObjectPool, ensure we don't disable a 'dead' or returning enemy indefinitely
+	if current_health > 0:
+		set_physics_process(false)
+		if sprite: sprite.hide()
+
+func _on_screen_entered() -> void:
+	if current_health > 0:
+		set_physics_process(true)
+		if sprite: sprite.show()

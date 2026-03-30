@@ -22,3 +22,7 @@ signal base_damaged(amount: int)
 signal unit_summoned(grid_pos: Vector2i, unit: Node2D)
 signal unit_merged(grid_pos: Vector2i, new_unit_data: Resource)
 signal cell_selected(grid_pos: Vector2i)
+
+# --- UI / Deck Signals ---
+signal card_dropped(card_ui: Control, drop_pos: Vector2)
+signal select_draft_card(unit_data: Resource)

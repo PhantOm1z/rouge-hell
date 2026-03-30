@@ -1,0 +1,48 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://main.gd" id="1"]
+[ext_resource type="Script" path="res://Systems/grid_manager.gd" id="2"]
+[ext_resource type="Script" path="res://Systems/wave_manager.gd" id="3"]
+[ext_resource type="PackedScene" path="res://Entities/Units/unit_base.tscn" id="4"]
+[ext_resource type="Resource" path="res://Resources/Instances/basic_tower.tres" id="5"]
+[ext_resource type="PackedScene" path="res://UI/card_ui.tscn" id="6"]
+
+[node name="Main" type="Node2D"]
+position = Vector2(0, 384)
+script = ExtResource("1")
+unit_scene = ExtResource("4")
+
+[node name="GridManager" type="Node" parent="."]
+script = ExtResource("2")
+
+[node name="WaveManager" type="Node" parent="."]
+script = ExtResource("3")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="HandContainer" type="HBoxContainer" parent="CanvasLayer"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -150.0
+offset_top = -120.0
+offset_right = 150.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/separation = 15
+alignment = 1
+
+[node name="CardUI1" parent="CanvasLayer/HandContainer" instance=ExtResource("6")]
+layout_mode = 2
+unit_data = ExtResource("5")
+
+[node name="CardUI2" parent="CanvasLayer/HandContainer" instance=ExtResource("6")]
+layout_mode = 2
+unit_data = ExtResource("5")
+
+[node name="CardUI3" parent="CanvasLayer/HandContainer" instance=ExtResource("6")]
+layout_mode = 2
+unit_data = ExtResource("5")
