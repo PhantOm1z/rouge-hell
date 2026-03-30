@@ -10,6 +10,7 @@ extends Resource
 @export var move_speed: float = 40.0
 @export var base_damage: int = 1
 @export var gold_reward: int = 1
+@export var exp_reward: int = 1
 @export var budget_cost: float = 10.0
 
 @export_group("Visuals")

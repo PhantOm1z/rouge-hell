@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://Resources/enemy_data.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://c6hwmdsqe7jof" path="res://icon.svg" id="2"]
+
+[resource]
+script = ExtResource("1")
+enemy_id = &"boss_demon"
+display_name = "Boss Infernale"
+max_health = 2500.0
+move_speed = 10.0
+base_damage = 999
+gold_reward = 500
+exp_reward = 200
+budget_cost = 2000.0
+sprite_texture = ExtResource("2")

@@ -60,7 +60,11 @@ func _spawn_enemy() -> void:
 		
 		# Scegliamo dati nemico in base al livello della wave (Wave 1 solo base, Wave 3 veloci, Wave 5 tank)
 		var chosen_data: EnemyData
-		if current_wave <= 2:
+		if current_wave == 5:
+			# Il gran finale: SPAWNA SOLO IL BOSS INFERNALE (1 solo in tutta la wave)
+			chosen_data = preload("res://Resources/Instances/boss_enemy.tres")
+			enemies_left_to_spawn = 0 # Blocca la coda di spawn
+		elif current_wave <= 2:
 			chosen_data = enemy_types[0] # Base
 		elif current_wave <= 4:
 			chosen_data = enemy_types.pick_random() # Base o Veloce

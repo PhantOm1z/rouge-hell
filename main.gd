@@ -24,6 +24,9 @@ func _ready() -> void:
 	Events.enemy_spawned.connect(_on_enemy_spawned)
 	Events.wave_started.connect(_on_wave_started)
 	
+	Events.exp_gained.connect(_on_exp_gained)
+	Events.select_draft_card.connect(_on_card_selected)
+	
 	$CanvasLayer/TopRightBox/SpeedButton.pressed.connect(_on_speed_pressed)
 	$CanvasLayer/TopRightBox/PauseButton.pressed.connect(_on_pause_pressed)
 	$CanvasLayer/TopRightBox/RestartButton.pressed.connect(_on_restart_pressed)
@@ -121,3 +124,35 @@ func _on_unit_summoned(grid_pos: Vector2i, unit: Node2D) -> void:
 func _on_enemy_spawned(enemy: Node2D) -> void:
 	if enemy.get_parent() == null:
 		add_child(enemy)
+
+# --- RPG & Progression Logic ---
+var current_exp: int = 0
+var exp_to_next: int = 10
+var player_level: int = 1
+
+func _on_exp_gained(amount: int) -> void:
+	current_exp += amount
+	
+	if current_exp >= exp_to_next:
+		current_exp -= exp_to_next
+		player_level += 1
+		exp_to_next = int(exp_to_next * 1.5) # Scala la difficoltà (es. 10 -> 15 -> 22 -> 33)
+		
+		# Apriamo la tendina Draft 1 di 3
+		$CanvasLayer/DraftUI.open_draft()
+		
+	_update_rpg_ui()
+
+func _update_rpg_ui() -> void:
+	var lbl = $CanvasLayer/LevelBox/LevelLabel
+	var bar = $CanvasLayer/LevelBox/ExpBar
+	if lbl and bar:
+		lbl.text = "Livello %d" % player_level
+		bar.max_value = exp_to_next
+		bar.value = current_exp
+
+func _on_card_selected(data: UnitData) -> void:
+	# Istanzia un nuovo nodo Carta pescata e posizionalo nel HandContainer
+	var new_card = preload("res://UI/card_ui.tscn").instantiate()
+	new_card.unit_data = data
+	$CanvasLayer/HandContainer.add_child(new_card)

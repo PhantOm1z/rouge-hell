@@ -9,6 +9,7 @@
 [ext_resource type="Resource" path="res://Resources/Instances/big_tower.tres" id="7"]
 [ext_resource type="Resource" path="res://Resources/Instances/mega_tower.tres" id="8"]
 [ext_resource type="PackedScene" path="res://Entities/Base/player_base.tscn" id="9"]
+[ext_resource type="PackedScene" path="res://UI/draft_ui.tscn" id="10"]
 
 [node name="Main" type="Node2D"]
 position = Vector2(0, 128)
@@ -26,6 +27,26 @@ position = Vector2(360, 950)
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 process_mode = 3
+
+[node name="LevelBox" type="VBoxContainer" parent="CanvasLayer"]
+offset_left = 20.0
+offset_top = 70.0
+offset_right = 220.0
+offset_bottom = 110.0
+
+[node name="LevelLabel" type="Label" parent="CanvasLayer/LevelBox"]
+layout_mode = 2
+text = "Level 1"
+theme_override_colors/font_color = Color(1, 0.9, 0.4, 1)
+
+[node name="ExpBar" type="ProgressBar" parent="CanvasLayer/LevelBox"]
+layout_mode = 2
+max_value = 10.0
+show_percentage = false
+
+[node name="DraftUI" parent="CanvasLayer" instance=ExtResource("10")]
+visible = false
+z_index = 100
 
 [node name="TopLeftBox" type="MarginContainer" parent="CanvasLayer"]
 offset_left = 20.0
