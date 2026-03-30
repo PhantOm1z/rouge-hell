@@ -4,7 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://c6hwmdsqe7jof" path="res://icon.svg" id="2"]
 
 [node name="CardUI" type="Control"]
-custom_minimum_size = Vector2(80, 100)
+custom_minimum_size = Vector2(160, 240)
 layout_mode = 3
 anchors_preset = 0
 script = ExtResource("1")
@@ -17,39 +17,66 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.180392, 0.180392, 0.231373, 1)
+color = Color(0.12, 0.12, 0.15, 1)
 
-[node name="TextureRect" type="TextureRect" parent="ColorRect"]
+[node name="Outline" type="ReferenceRect" parent="."]
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -30.0
-offset_top = -30.0
-offset_right = 30.0
-offset_bottom = 30.0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+border_color = Color(0.9, 0.75, 0.3, 1)
+border_width = 3.0
+editor_only = false
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+mouse_filter = 2
+
+[node name="TextureRect" type="TextureRect" parent="VBox"]
+custom_minimum_size = Vector2(0, 110)
+layout_mode = 2
+mouse_filter = 2
 texture = ExtResource("2")
 expand_mode = 1
+stretch_mode = 5
 
-[node name="Label" type="Label" parent="ColorRect"]
-layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -40.0
-offset_top = -23.0
-offset_right = 40.0
-grow_horizontal = 2
-grow_vertical = 0
-theme_override_font_sizes/font_size = 12
+[node name="Label" type="Label" parent="VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.75, 0.3, 1)
+theme_override_font_sizes/font_size = 20
 text = "Level 1"
 horizontal_alignment = 1
 
+[node name="FormatLine" type="ColorRect" parent="VBox"]
+custom_minimum_size = Vector2(0, 2)
+layout_mode = 2
+mouse_filter = 2
+color = Color(0.3, 0.3, 0.3, 1)
+
+[node name="DescLabel" type="Label" parent="VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 12
+text = "Base Tower.
+Dmg: 10"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="PreviewSprite" type="Sprite2D" parent="."]
+visible = false
+modulate = Color(1, 1, 1, 0.8)
+texture = ExtResource("2")
+
 [connection signal="gui_input" from="." to="." method="_gui_input"]
+[connection signal="mouse_entered" from="." to="." method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="." to="." method="_on_mouse_exited"]

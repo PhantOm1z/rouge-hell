@@ -6,9 +6,12 @@
 [ext_resource type="PackedScene" path="res://Entities/Units/unit_base.tscn" id="4"]
 [ext_resource type="Resource" path="res://Resources/Instances/basic_tower.tres" id="5"]
 [ext_resource type="PackedScene" path="res://UI/card_ui.tscn" id="6"]
+[ext_resource type="Resource" path="res://Resources/Instances/big_tower.tres" id="7"]
+[ext_resource type="Resource" path="res://Resources/Instances/mega_tower.tres" id="8"]
+[ext_resource type="PackedScene" path="res://Entities/Base/player_base.tscn" id="9"]
 
 [node name="Main" type="Node2D"]
-position = Vector2(0, 384)
+position = Vector2(0, 128)
 script = ExtResource("1")
 unit_scene = ExtResource("4")
 
@@ -18,6 +21,9 @@ script = ExtResource("2")
 [node name="WaveManager" type="Node" parent="."]
 script = ExtResource("3")
 
+[node name="PlayerBase" parent="." instance=ExtResource("9")]
+position = Vector2(360, 950)
+
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
 [node name="HandContainer" type="HBoxContainer" parent="CanvasLayer"]
@@ -26,9 +32,9 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -150.0
-offset_top = -120.0
-offset_right = 150.0
+offset_left = -340.0
+offset_top = -240.0
+offset_right = 340.0
 offset_bottom = -20.0
 grow_horizontal = 2
 grow_vertical = 0
@@ -41,8 +47,8 @@ unit_data = ExtResource("5")
 
 [node name="CardUI2" parent="CanvasLayer/HandContainer" instance=ExtResource("6")]
 layout_mode = 2
-unit_data = ExtResource("5")
+unit_data = ExtResource("7")
 
 [node name="CardUI3" parent="CanvasLayer/HandContainer" instance=ExtResource("6")]
 layout_mode = 2
-unit_data = ExtResource("5")
+unit_data = ExtResource("8")

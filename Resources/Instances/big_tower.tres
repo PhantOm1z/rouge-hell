@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://Resources/unit_data.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://c6hwmdsqe7jof" path="res://icon.svg" id="2"]
+
+[resource]
+script = ExtResource("1")
+unit_id = &"big_tower_2x2"
+display_name = "Big Tower (2x2)"
+footprint = Vector2i(2, 2)
+tier = 2
+base_damage = 25.0
+attack_speed = 0.8
+attack_range = 200.0
+sprite_texture = ExtResource("2")
