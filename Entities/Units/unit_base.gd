@@ -59,8 +59,8 @@ func _find_new_target() -> void:
 	
 	# Mobile TD optimization: Just pick the first closest one, or oldest one.
 	for area: Area2D in enemies_in_range:
-		# Assuming the Area2D has the enemy script or its owner is the enemy
-		var enemy: EnemyBase = area.owner as EnemyBase
+		# L'Area2D si chiama HitBox ed è figlia diretta di EnemyBase
+		var enemy: EnemyBase = area.get_parent() as EnemyBase
 		if enemy != null and enemy.current_health > 0:
 			current_target = enemy
 			if attack_timer.is_stopped(): attack_timer.start()

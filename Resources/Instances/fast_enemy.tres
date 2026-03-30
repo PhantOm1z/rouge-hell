@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://Resources/enemy_data.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://c6hwmdsqe7jof" path="res://icon.svg" id="2"]
+
+[resource]
+script = ExtResource("1")
+enemy_id = &"fast_goblin"
+display_name = "Goblin Veloce"
+max_health = 15.0
+move_speed = 120.0
+base_damage = 2
+gold_reward = 3
+budget_cost = 5.0
+sprite_texture = ExtResource("2")

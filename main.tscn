@@ -25,6 +25,45 @@ script = ExtResource("3")
 position = Vector2(360, 950)
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
+process_mode = 3
+
+[node name="TopLeftBox" type="MarginContainer" parent="CanvasLayer"]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 200.0
+offset_bottom = 60.0
+
+[node name="WaveLabel" type="Label" parent="CanvasLayer/TopLeftBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "WAVE: 1/5"
+
+[node name="TopRightBox" type="HBoxContainer" parent="CanvasLayer"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -300.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 70.0
+grow_horizontal = 0
+theme_override_constants/separation = 10
+alignment = 2
+
+[node name="SpeedButton" type="Button" parent="CanvasLayer/TopRightBox"]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+text = "Spd: 1x"
+
+[node name="PauseButton" type="Button" parent="CanvasLayer/TopRightBox"]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+text = "Pause"
+
+[node name="RestartButton" type="Button" parent="CanvasLayer/TopRightBox"]
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+text = "Restart"
 
 [node name="HandContainer" type="HBoxContainer" parent="CanvasLayer"]
 anchors_preset = 7

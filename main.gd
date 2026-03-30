@@ -8,14 +8,57 @@ var hovered_cell: Vector2i = Vector2i(-1, -1)
 var dragged_card: Control = null
 
 func _ready() -> void:
+	# Pool Setup automatico per caricare pallottole e nemici veloci per Android
+	var proj_scene = preload("res://Entities/Projectiles/projectile_base.tscn")
+	var enemy_scene = preload("res://Entities/Enemies/enemy_base.tscn")
+	ObjectPool.register_pool("base_projectile", proj_scene, 50)
+	ObjectPool.register_pool("common_enemy", enemy_scene, 50)
+
 	cell_size = 720.0 / float(grid_manager.grid_width)
 	grid_manager.initialize_grid()
 	
 	Events.card_dropped.connect(_on_card_dropped)
 	Events.card_dragged.connect(_on_card_dragged)
 	Events.card_drag_ended.connect(_on_card_drag_ended)
-	
 	Events.unit_summoned.connect(_on_unit_summoned)
+	Events.enemy_spawned.connect(_on_enemy_spawned)
+	Events.wave_started.connect(_on_wave_started)
+	
+	$CanvasLayer/TopRightBox/SpeedButton.pressed.connect(_on_speed_pressed)
+	$CanvasLayer/TopRightBox/PauseButton.pressed.connect(_on_pause_pressed)
+	$CanvasLayer/TopRightBox/RestartButton.pressed.connect(_on_restart_pressed)
+	
+	# Dopo 3 secondi dall'avvio, la griglia chiama la prima Wave letale
+	await get_tree().create_timer(3.0).timeout
+	$WaveManager.start_next_wave()
+
+var speed_index: int = 1
+var speeds: Array[float] = [0.5, 1.0, 2.0, 3.0]
+
+func _on_speed_pressed() -> void:
+	speed_index = (speed_index + 1) % speeds.size()
+	var new_speed = speeds[speed_index]
+	Engine.time_scale = new_speed
+	$CanvasLayer/TopRightBox/SpeedButton.text = "Spd: %sx" % new_speed
+
+func _on_pause_pressed() -> void:
+	get_tree().paused = not get_tree().paused
+	$CanvasLayer/TopRightBox/PauseButton.text = "Resume" if get_tree().paused else "Pause"
+
+func _on_restart_pressed() -> void:
+	# Resettiamo la velocità e togliamo la pausa prima di eliminare e ricaricare la scena
+	Engine.time_scale = 1.0
+	get_tree().paused = false
+	
+	# Rilasciamo tutti gli object pool per svuotare la RAM su cellulare
+	for child in ObjectPool.get_children():
+		child.queue_free()
+	
+	get_tree().reload_current_scene()
+
+func _on_wave_started(wave_idx: int) -> void:
+	var total = $WaveManager.max_waves
+	$CanvasLayer/TopLeftBox/WaveLabel.text = "WAVE: %d/%d" % [wave_idx, total]
 
 func _draw() -> void:
 	var width: int = grid_manager.grid_width
@@ -74,3 +117,7 @@ func _on_unit_summoned(grid_pos: Vector2i, unit: Node2D) -> void:
 		# Lo scaliamo rispetto al lato minore del rettangolo o semplicemente il minimo dei due scale
 		var max_side = min(fp.x, fp.y)
 		sprite.scale = Vector2(1,1) * (cell_size * max_side / tex_size.x) * 0.8
+
+func _on_enemy_spawned(enemy: Node2D) -> void:
+	if enemy.get_parent() == null:
+		add_child(enemy)
