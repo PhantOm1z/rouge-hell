@@ -18,7 +18,9 @@ var current_health: float = 0.0
 var path_points: PackedVector2Array = []
 var current_path_index: int = 0
 var waypoint_reach_distance: float = 22.0
-var path_lookahead_steps: int = 6
+var has_valid_path: bool = false
+var has_entered_screen_once: bool = false
+var is_eliminated: bool = false
 
 func _ready() -> void:
 	add_to_group("enemies")
@@ -32,6 +34,7 @@ func _ready() -> void:
 func setup(enemy_data: EnemyData) -> void:
 	data = enemy_data
 	current_health = data.max_health
+	is_eliminated = false
 	
 	if health_bar:
 		health_bar.max_value = data.max_health
@@ -44,72 +47,84 @@ func setup(enemy_data: EnemyData) -> void:
 	collision_layer = 0
 	collision_mask = 0
 
+	path_points = PackedVector2Array()
 	current_path_index = 0
+	has_valid_path = false
+	has_entered_screen_once = false
+	if sprite:
+		sprite.show()
+	if health_bar:
+		health_bar.show()
 	set_physics_process(true)
 
 func set_path_points(points: PackedVector2Array) -> void:
 	path_points = points
-	current_path_index = 0
+	if path_points.is_empty():
+		current_path_index = 0
+		has_valid_path = false
+		return
+
+	has_valid_path = true
+	current_path_index = _find_closest_waypoint_index(global_position)
+	_consume_reached_waypoints()
 
 func _physics_process(delta: float) -> void:
-	if data == null or current_health <= 0: return
+	if data == null or current_health <= 0 or is_eliminated: return
 	_move_along_path(delta)
 
 func _move_along_path(delta: float) -> void:
-	if current_path_index >= path_points.size():
-		_reach_base()
+	if not has_valid_path or path_points.is_empty():
 		return
-
-	var reach_dist_sq := waypoint_reach_distance * waypoint_reach_distance
-
-	# Consuma i waypoint gia' raggiunti.
-	while current_path_index < path_points.size():
-		var current_wp: Vector2 = path_points[current_path_index]
-		if global_position.distance_squared_to(current_wp) <= reach_dist_sq:
-			current_path_index += 1
-		else:
-			break
 
 	if current_path_index >= path_points.size():
 		_reach_base()
 		return
 
-	# Steering predittivo: punta qualche waypoint avanti per iniziare a curvare prima.
-	var target_index := mini(current_path_index + path_lookahead_steps, path_points.size() - 1)
-	var target_pos: Vector2 = path_points[target_index]
+	_consume_reached_waypoints()
+
+	if current_path_index >= path_points.size():
+		_reach_base()
+		return
+
+	var target_pos: Vector2 = path_points[current_path_index]
 	var to_target: Vector2 = target_pos - global_position
 
-	# Movimento manuale: evita incastri da fisica quando gli enemy sono tanti.
 	var step := data.move_speed * delta
 	var dist := to_target.length()
+	if dist <= 0.001:
+		current_path_index += 1
+		return
+
 	if dist <= step:
 		global_position = target_pos
 		current_path_index += 1
 	else:
-		var steer_dir := _compute_steer_direction(current_path_index)
-		if steer_dir.length_squared() <= 0.0001:
-			steer_dir = to_target / maxf(dist, 0.001)
-		global_position += steer_dir * step
+		global_position += (to_target / dist) * step
 
-func _compute_steer_direction(from_index: int) -> Vector2:
-	if path_points.is_empty() or from_index >= path_points.size():
-		return Vector2.ZERO
+func _find_closest_waypoint_index(pos: Vector2) -> int:
+	var closest_index := 0
+	var closest_dist_sq := INF
 
-	var base_target := path_points[from_index]
-	var dir := global_position.direction_to(base_target)
+	for i in range(path_points.size()):
+		var d := pos.distance_squared_to(path_points[i])
+		if d < closest_dist_sq:
+			closest_dist_sq = d
+			closest_index = i
 
-	var end_index := mini(from_index + path_lookahead_steps, path_points.size() - 1)
-	var weight_total := 1.0
-	for i in range(from_index + 1, end_index + 1):
-		var weight := 0.35 * float(end_index - i + 1)
-		dir += global_position.direction_to(path_points[i]) * weight
-		weight_total += weight
+	return closest_index
 
-	if dir.length_squared() <= 0.0001:
-		return Vector2.ZERO
-	return (dir / weight_total).normalized()
+func _consume_reached_waypoints() -> void:
+	var reach_dist_sq := waypoint_reach_distance * waypoint_reach_distance
+	while current_path_index < path_points.size():
+		if global_position.distance_squared_to(path_points[current_path_index]) <= reach_dist_sq:
+			current_path_index += 1
+		else:
+			break
 
 func take_damage(amount: float) -> void:
+	if is_eliminated:
+		return
+
 	current_health -= amount
 	if health_bar:
 		health_bar.value = current_health
@@ -118,12 +133,22 @@ func take_damage(amount: float) -> void:
 		_die()
 
 func _die() -> void:
+	if is_eliminated:
+		return
+	is_eliminated = true
 	current_health = 0
+	has_valid_path = false
 	set_physics_process(false)
 	Events.enemy_died.emit(self, data.gold_reward)
 	Events.exp_gained.emit(data.exp_reward)
 
 func _reach_base() -> void:
+	if is_eliminated:
+		return
+	is_eliminated = true
+	current_health = 0
+	has_valid_path = false
+	set_physics_process(false)
 	Events.base_damaged.emit(data.base_damage)
 	Events.enemy_died.emit(self, 0)
 
@@ -132,11 +157,18 @@ func _reach_base() -> void:
 # In a TD, enemies often stay on-screen, but this saves CPU if they haven't entered yet or exit bounds.
 func _on_screen_exited() -> void:
 	# If using ObjectPool, ensure we don't disable a 'dead' or returning enemy indefinitely
-	if current_health > 0:
+	if current_health > 0 and has_entered_screen_once and not is_eliminated:
 		set_physics_process(false)
-		if sprite: sprite.hide()
+		if sprite:
+			sprite.hide()
+		if health_bar:
+			health_bar.hide()
 
 func _on_screen_entered() -> void:
-	if current_health > 0:
+	if current_health > 0 and not is_eliminated:
+		has_entered_screen_once = true
 		set_physics_process(true)
-		if sprite: sprite.show()
+		if sprite:
+			sprite.show()
+		if health_bar:
+			health_bar.show()

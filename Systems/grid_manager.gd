@@ -1,7 +1,8 @@
-﻿class_name GridManager
+class_name GridManager
 extends Node
 
 var _grid_cells: Dictionary = {} # Vector2i -> Node2D
+var blocked_cells: Dictionary = {} # Vector2i -> bool
 @export var grid_width: int = 16
 @export var grid_height: int = 20
 
@@ -14,6 +15,8 @@ func initialize_grid() -> void:
 	astar.default_compute_heuristic = AStarGrid2D.HEURISTIC_MANHATTAN
 	astar.update()
 
+	blocked_cells.clear()
+	_grid_cells.clear()
 	for x in range(grid_width):
 		for y in range(grid_height):
 			_grid_cells[Vector2i(x, y)] = null
@@ -76,6 +79,36 @@ func summon_unit(grid_pos: Vector2i, unit_scene: PackedScene, unit_data: UnitDat
 
 	Events.grid_updated.emit()
 
+func set_blocked_cells(cells: Array[Vector2i]) -> void:
+	blocked_cells.clear()
+	for cell in cells:
+		if is_valid_position(cell):
+			blocked_cells[cell] = true
+	_rebuild_astar_solids()
+	Events.grid_updated.emit()
+
+func get_blocked_cells() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for c in blocked_cells.keys():
+		cells.append(c)
+	return cells
+
+func clear_all_units() -> void:
+	var units_to_remove: Dictionary = {}
+	for unit in _grid_cells.values():
+		if unit != null:
+			units_to_remove[unit] = true
+
+	for unit in units_to_remove.keys():
+		if is_instance_valid(unit):
+			unit.queue_free()
+
+	for pos in _grid_cells.keys():
+		_grid_cells[pos] = null
+
+	_rebuild_astar_solids()
+	Events.grid_updated.emit()
+
 func attempt_merge(pos_a: Vector2i, pos_b: Vector2i, unit_scene: PackedScene) -> void:
 	if not is_valid_position(pos_a) or not is_valid_position(pos_b):
 		return
@@ -117,14 +150,28 @@ func is_valid_position(pos: Vector2i) -> bool:
 	return _grid_cells.has(pos)
 
 func is_cell_occupied(pos: Vector2i) -> bool:
+	if blocked_cells.has(pos):
+		return true
 	return _grid_cells.get(pos) != null
 
 func get_random_empty_cell() -> Vector2i:
 	var empty_cells: Array[Vector2i] = []
 	for pos: Vector2i in _grid_cells.keys():
-		if _grid_cells[pos] == null:
+		if _grid_cells[pos] == null and not blocked_cells.has(pos):
 			empty_cells.append(pos)
 
 	if empty_cells.is_empty():
 		return Vector2i(-1, -1)
 	return empty_cells.pick_random()
+
+func _rebuild_astar_solids() -> void:
+	for x in range(grid_width):
+		for y in range(grid_height):
+			astar.set_point_solid(Vector2i(x, y), false)
+
+	for c in blocked_cells.keys():
+		astar.set_point_solid(c, true)
+
+	for pos in _grid_cells.keys():
+		if _grid_cells[pos] != null:
+			astar.set_point_solid(pos, true)

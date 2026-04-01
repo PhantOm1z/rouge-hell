@@ -2,10 +2,12 @@ extends Node2D
 
 @onready var grid_manager: GridManager = $GridManager
 @export var unit_scene: PackedScene
+@export var repath_interval_seconds: float = 0.35
 
 var cell_size: float = 0.0
 var hovered_cell: Vector2i = Vector2i(-1, -1)
 var dragged_card: Control = null
+var repath_accumulator: float = 0.0
 
 func _ready() -> void:
 	# Pool Setup automatico per caricare pallottole e nemici veloci per Android
@@ -34,18 +36,36 @@ func _ready() -> void:
 	$CanvasLayer/TopRightBox/PauseButton.pressed.connect(_on_pause_pressed)
 	$CanvasLayer/TopRightBox/RestartButton.pressed.connect(_on_restart_pressed)
 	$CanvasLayer/TopRightBox/AddCardButton.pressed.connect(_on_add_card_pressed)
+	$CanvasLayer/TopRightBox/LayoutButton.pressed.connect(_on_layout_button_pressed)
 
 	selected_time_scale = speeds[speed_index]
 	Engine.time_scale = selected_time_scale
 	$CanvasLayer/TopRightBox/SpeedButton.text = "Spd: %sx" % selected_time_scale
 
+	_build_stage_layouts()
+	_apply_stage_layout(0, false)
+
 	# Dopo 3 secondi dall'avvio, la griglia chiama la prima Wave letale
 	await get_tree().create_timer(3.0).timeout
 	$WaveManager.start_next_wave()
 
+func _process(delta: float) -> void:
+	if repath_interval_seconds <= 0.0:
+		return
+
+	repath_accumulator += delta
+	if repath_accumulator < repath_interval_seconds:
+		return
+
+	repath_accumulator = 0.0
+	_refresh_paths_for_active_enemies()
+
 var speed_index: int = 1
 var speeds: Array[float] = [0.5, 1.0, 2.0, 3.0]
 var selected_time_scale: float = 1.0
+var stage_layout_index: int = 0
+var stage_layout_names: Array[String] = []
+var stage_layouts: Array = []
 
 func _on_speed_pressed() -> void:
 	speed_index = (speed_index + 1) % speeds.size()
@@ -72,6 +92,71 @@ func _on_add_card_pressed() -> void:
 	# Debug: aggiunge una carta Big Tower ogni volta che premi il bottone.
 	_on_card_selected(preload("res://Resources/Instances/big_tower.tres"))
 
+func _on_layout_button_pressed() -> void:
+	if stage_layouts.is_empty():
+		return
+	stage_layout_index = (stage_layout_index + 1) % stage_layouts.size()
+	_apply_stage_layout(stage_layout_index, true)
+
+func _build_stage_layouts() -> void:
+	stage_layout_names = ["Layout 1", "Layout 2", "Layout 3"]
+	stage_layouts.clear()
+
+	var layout1: Array[Vector2i] = []
+	layout1.append_array(_cells_rect(1, 5, 5, 1))
+	layout1.append_array(_cells_rect(10, 5, 5, 1))
+	layout1.append_array(_cells_rect(4, 10, 8, 1))
+	layout1.append_array(_cells_rect(2, 15, 5, 1))
+	layout1.append_array(_cells_rect(10, 15, 4, 1))
+	stage_layouts.append(layout1)
+
+	var layout2: Array[Vector2i] = []
+	layout2.append_array(_cells_rect(2, 3, 12, 1))
+	layout2.append_array(_cells_rect(2, 8, 12, 1))
+	layout2.append_array(_cells_rect(2, 13, 12, 1))
+	layout2.append_array(_cells_rect(7, 4, 1, 3))
+	layout2.append_array(_cells_rect(9, 9, 1, 3))
+	stage_layouts.append(layout2)
+
+	var layout3: Array[Vector2i] = []
+	layout3.append_array(_cells_rect(0, 6, 6, 1))
+	layout3.append_array(_cells_rect(10, 6, 6, 1))
+	layout3.append_array(_cells_rect(5, 9, 1, 6))
+	layout3.append_array(_cells_rect(10, 9, 1, 6))
+	layout3.append_array(_cells_rect(3, 16, 10, 1))
+	stage_layouts.append(layout3)
+
+func _apply_stage_layout(index: int, clear_units: bool) -> void:
+	if index < 0 or index >= stage_layouts.size():
+		return
+
+	stage_layout_index = index
+	if clear_units:
+		_clear_all_enemies_for_layout_change()
+		grid_manager.clear_all_units()
+	var cells: Array[Vector2i] = stage_layouts[index]
+	grid_manager.set_blocked_cells(cells)
+	$CanvasLayer/TopRightBox/LayoutButton.text = stage_layout_names[index]
+	queue_redraw()
+
+func _cells_rect(x: int, y: int, w: int, h: int) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for yy in range(y, y + h):
+		for xx in range(x, x + w):
+			cells.append(Vector2i(xx, yy))
+	return cells
+
+func _clear_all_enemies_for_layout_change() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as EnemyBase
+		if enemy == null:
+			continue
+		if enemy.current_health <= 0:
+			continue
+		enemy.current_health = 0
+		enemy.set_physics_process(false)
+		Events.enemy_died.emit(enemy, 0)
+
 func _on_wave_started(wave_idx: int) -> void:
 	var total = $WaveManager.max_waves
 	$CanvasLayer/TopLeftBox/WaveLabel.text = "WAVE: %d/%d" % [wave_idx, total]
@@ -79,6 +164,10 @@ func _on_wave_started(wave_idx: int) -> void:
 func _draw() -> void:
 	var width: int = grid_manager.grid_width
 	var height: int = grid_manager.grid_height
+
+	for cell in grid_manager.get_blocked_cells():
+		var rect = Rect2(cell.x * cell_size, cell.y * cell_size, cell_size, cell_size)
+		draw_rect(rect, Color(0.42, 0.31, 0.18, 0.9), true)
 
 	for x in range(width + 1):
 		draw_line(Vector2(x * cell_size, 0), Vector2(x * cell_size, height * cell_size), Color.DARK_GRAY, 2.0)
@@ -89,7 +178,7 @@ func _draw() -> void:
 		var fp = dragged_card.unit_data.footprint
 		var highlight_color = Color(0.4, 0.9, 1.0, 0.4) # Posizionabile
 
-		if not grid_manager.can_place_footprint(hovered_cell, fp):
+		if not grid_manager.can_place_footprint(hovered_cell, fp) or _footprint_overlaps_enemy(hovered_cell, fp):
 			highlight_color = Color(1.0, 0.2, 0.2, 0.4) # Sbagliato
 
 		var box_rect = Rect2(hovered_cell.x * cell_size, hovered_cell.y * cell_size, fp.x * cell_size, fp.y * cell_size)
@@ -142,7 +231,11 @@ func _on_card_drag_ended(card_ui: Control) -> void:
 func _on_card_dropped(card_ui: Control, drop_pos: Vector2) -> void:
 	var target_cell = _get_grid_pos(drop_pos)
 
-	if grid_manager.can_place_footprint(target_cell, card_ui.unit_data.footprint):
+	var can_place = grid_manager.can_place_footprint(target_cell, card_ui.unit_data.footprint)
+	if can_place:
+		can_place = _placement_keeps_all_enemy_paths(target_cell, card_ui.unit_data.footprint)
+
+	if can_place:
 		grid_manager.summon_unit(target_cell, unit_scene, card_ui.unit_data)
 		card_ui.confirm_drop()
 	else:
@@ -150,6 +243,61 @@ func _on_card_dropped(card_ui: Control, drop_pos: Vector2) -> void:
 
 	# Fail-safe: dopo ogni drop torniamo alla velocita scelta dal player.
 	Engine.time_scale = selected_time_scale
+
+func _placement_keeps_all_enemy_paths(start_pos: Vector2i, footprint: Vector2i) -> bool:
+	# Non permettere placement sopra nemici vivi: evita soft-lock e stalli.
+	if _footprint_overlaps_enemy(start_pos, footprint):
+		return false
+
+	# Simula il blocco footprint e verifica che tutti i nemici attivi abbiano ancora un path.
+	var simulated_cells: Array[Vector2i] = []
+	for x in range(footprint.x):
+		for y in range(footprint.y):
+			var cell = start_pos + Vector2i(x, y)
+			if grid_manager.astar.is_point_solid(cell):
+				# Should not happen if can_place_footprint e' gia' true, ma teniamo guardia.
+				for rollback_cell in simulated_cells:
+					grid_manager.astar.set_point_solid(rollback_cell, false)
+				return false
+			grid_manager.astar.set_point_solid(cell, true)
+			simulated_cells.append(cell)
+
+	var all_ok := true
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as EnemyBase
+		if enemy == null or enemy.current_health <= 0:
+			continue
+
+		var start_grid = _get_grid_pos(enemy.global_position)
+		start_grid.x = clampi(start_grid.x, 0, grid_manager.grid_width - 1)
+		start_grid.y = clampi(start_grid.y, 0, grid_manager.grid_height - 1)
+		start_grid = _find_nearest_walkable_cell(start_grid)
+
+		var path_ids = _find_best_bottom_path(start_grid)
+		if path_ids.is_empty():
+			all_ok = false
+			break
+
+	for rollback_cell in simulated_cells:
+		grid_manager.astar.set_point_solid(rollback_cell, false)
+
+	return all_ok
+
+func _footprint_overlaps_enemy(start_pos: Vector2i, footprint: Vector2i) -> bool:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as EnemyBase
+		if enemy == null or enemy.current_health <= 0:
+			continue
+
+		var enemy_cell = _get_grid_pos(enemy.global_position)
+		enemy_cell.x = clampi(enemy_cell.x, 0, grid_manager.grid_width - 1)
+		enemy_cell.y = clampi(enemy_cell.y, 0, grid_manager.grid_height - 1)
+
+		if enemy_cell.x >= start_pos.x and enemy_cell.x < start_pos.x + footprint.x:
+			if enemy_cell.y >= start_pos.y and enemy_cell.y < start_pos.y + footprint.y:
+				return true
+
+	return false
 
 func _on_unit_summoned(grid_pos: Vector2i, unit: Node2D) -> void:
 	var fp = unit.data.footprint
@@ -202,12 +350,14 @@ func _on_card_selected(data: UnitData) -> void:
 
 # --- Pathfinding AI (AStarGrid2D) ---
 func _on_grid_updated() -> void:
-	# Quando viene messa o tolta una torre, ricalcola il percorso di tutti!
-	for enemy in get_tree().get_nodes_in_group("enemies"):
-		_update_path_for_enemy(enemy)
+	# Quando viene messa o tolta una torre, ricalcola subito il percorso di tutti.
+	_refresh_paths_for_active_enemies()
+	queue_redraw()
 
 func _update_path_for_enemy(enemy: Node2D) -> void:
 	if not is_instance_valid(enemy):
+		return
+	if enemy is EnemyBase and enemy.current_health <= 0:
 		return
 
 	# Da dove parte (limitato nei bordi per evitare crash AStar)
@@ -216,48 +366,21 @@ func _update_path_for_enemy(enemy: Node2D) -> void:
 	start_grid.y = clampi(start_grid.y, 0, grid_manager.grid_height - 1)
 	start_grid = _find_nearest_walkable_cell(start_grid)
 
-	var path_ids = _find_best_path_ids(start_grid, enemy.global_position)
+	var path_ids = _find_best_bottom_path(start_grid)
 	var global_path: PackedVector2Array = []
 	for id in path_ids:
 		var world_pos = global_position + Vector2(id.x * cell_size + cell_size / 2.0, id.y * cell_size + cell_size / 2.0)
 		global_path.append(world_pos)
 
-	if global_path.size() > 0:
-		if enemy.has_method("set_path_points"):
-			enemy.set_path_points(global_path)
+	if enemy.has_method("set_path_points"):
+		enemy.set_path_points(global_path)
 
-func _find_best_path_ids(start_grid: Vector2i, enemy_world_pos: Vector2) -> Array[Vector2i]:
-	var best_path: Array[Vector2i] = []
-	var best_score: float = INF
-	var evaluated: Dictionary = {}
-
-	# 1) Prova dal punto attuale del nemico.
-	var local_path = _find_best_bottom_path(start_grid)
-	if not local_path.is_empty():
-		best_path = local_path
-		best_score = float(local_path.size())
-	evaluated[start_grid] = true
-
-	# 2) Prova anche ogni ingresso in alto: permette deviazione laterale anticipata.
-	for entry_x in range(grid_manager.grid_width):
-		var entry_cell := Vector2i(entry_x, 0)
-		if evaluated.has(entry_cell):
+func _refresh_paths_for_active_enemies() -> void:
+	for node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as EnemyBase
+		if enemy == null or enemy.current_health <= 0:
 			continue
-		if grid_manager.astar.is_point_solid(entry_cell):
-			continue
-
-		var candidate_path = _find_best_bottom_path(entry_cell)
-		if candidate_path.is_empty():
-			continue
-
-		var entry_world = _grid_to_world(entry_cell)
-		var approach_cost = enemy_world_pos.distance_to(entry_world) / maxf(cell_size, 1.0)
-		var score = float(candidate_path.size()) + approach_cost
-		if score < best_score:
-			best_score = score
-			best_path = candidate_path
-
-	return best_path
+		_update_path_for_enemy(enemy)
 
 func _find_best_bottom_path(start_grid: Vector2i) -> Array[Vector2i]:
 	var best_path: Array[Vector2i] = []
@@ -276,14 +399,12 @@ func _find_best_bottom_path(start_grid: Vector2i) -> Array[Vector2i]:
 
 	return best_path
 
-func _grid_to_world(cell: Vector2i) -> Vector2:
-	return global_position + Vector2(cell.x * cell_size + cell_size / 2.0, cell.y * cell_size + cell_size / 2.0)
-
 func _find_nearest_walkable_cell(origin: Vector2i) -> Vector2i:
 	if not grid_manager.astar.is_point_solid(origin):
 		return origin
 
-	for radius in range(1, 6):
+	var max_radius = maxi(grid_manager.grid_width, grid_manager.grid_height)
+	for radius in range(1, max_radius + 1):
 		for y in range(origin.y - radius, origin.y + radius + 1):
 			for x in range(origin.x - radius, origin.x + radius + 1):
 				var candidate := Vector2i(x, y)
