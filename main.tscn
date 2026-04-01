@@ -63,7 +63,7 @@ text = "WAVE: 1/5"
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -300.0
+offset_left = -430.0
 offset_top = 20.0
 offset_right = -20.0
 offset_bottom = 70.0
@@ -86,6 +86,11 @@ custom_minimum_size = Vector2(80, 0)
 layout_mode = 2
 text = "Restart"
 
+[node name="AddCardButton" type="Button" parent="CanvasLayer/TopRightBox"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "Add Card"
+
 [node name="HandContainer" type="HBoxContainer" parent="CanvasLayer"]
 anchors_preset = 7
 anchor_left = 0.5
@@ -103,7 +108,7 @@ alignment = 1
 
 [node name="CardUI1" parent="CanvasLayer/HandContainer" instance=ExtResource("6")]
 layout_mode = 2
-unit_data = ExtResource("5")
+unit_data = ExtResource("7")
 
 [node name="CardUI2" parent="CanvasLayer/HandContainer" instance=ExtResource("6")]
 layout_mode = 2
@@ -111,4 +116,4 @@ unit_data = ExtResource("7")
 
 [node name="CardUI3" parent="CanvasLayer/HandContainer" instance=ExtResource("6")]
 layout_mode = 2
-unit_data = ExtResource("8")
+unit_data = ExtResource("7")

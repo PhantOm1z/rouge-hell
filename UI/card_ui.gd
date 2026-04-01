@@ -20,10 +20,10 @@ var return_pos: Vector2
 func _ready() -> void:
 	# Settiamo il centro di rotazione/scala al centro esatto della carta
 	pivot_offset = custom_minimum_size / 2.0
-	
+
 	outline.border_width = 1.0
 	outline.border_color = Color(0.4, 0.4, 0.4, 1.0)
-	
+
 	if unit_data:
 		setup(unit_data)
 
@@ -38,47 +38,63 @@ func setup(data: UnitData) -> void:
 		desc_label.text = "Torre Lv.%d\nDanni: %d\nVelocita: %.1f" % [data.tier, int(data.base_damage), data.attack_speed]
 
 func _gui_input(event: InputEvent) -> void:
-	if event is InputEventScreenTouch or event is InputEventMouseButton:
-		if event.is_pressed():
-			# Clicca per iniziare a trascinare
-			is_dragging = true
-			start_pos = global_position
-			return_pos = position
-			top_level = true # Svincola dall'HBoxContainer
-			
-			_visualize_as_tower()
-			Events.call("emit_signal", "card_drag_started", self)
-			
-		elif is_dragging and not event.is_pressed():
-			# Rilascia
-			is_dragging = false
-			_visualize_as_card()
-			Events.call("emit_signal", "card_drag_ended", self)
-			_attempt_drop(get_global_mouse_position())
+	if event is InputEventScreenTouch and event.is_pressed():
+		_start_drag()
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.is_pressed():
+		_start_drag()
 
-	if event is InputEventScreenDrag or event is InputEventMouseMotion:
-		if is_dragging:
-			# Il mouse sposta direttamente la preview esattamente sotto al dito
-			# (senza offset del size/2 visto che la preview è centrata sullo [0,0] del Control)
-			global_position = get_global_mouse_position()
-			Events.call("emit_signal", "card_dragged", self, get_global_mouse_position())
+func _input(event: InputEvent) -> void:
+	if not is_dragging:
+		return
+
+	if event is InputEventScreenDrag:
+		_update_drag(event.position)
+	elif event is InputEventMouseMotion:
+		_update_drag(event.position)
+	elif event is InputEventScreenTouch and not event.is_pressed():
+		_finish_drag(event.position)
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.is_pressed():
+		_finish_drag(event.position)
+
+func _start_drag() -> void:
+	if is_dragging:
+		return
+
+	is_dragging = true
+	start_pos = global_position
+	return_pos = position
+	top_level = true # Svincola dall'HBoxContainer
+
+	_visualize_as_tower()
+	Events.call("emit_signal", "card_drag_started", self)
+
+func _update_drag(pointer_pos: Vector2) -> void:
+	# Il puntatore sposta direttamente la preview sotto al dito/cursore.
+	global_position = pointer_pos
+	Events.call("emit_signal", "card_dragged", self, pointer_pos)
+
+func _finish_drag(drop_pos: Vector2) -> void:
+	is_dragging = false
+	_visualize_as_card()
+	Events.call("emit_signal", "card_drag_ended", self)
+	_attempt_drop(drop_pos)
 
 func _visualize_as_tower() -> void:
 	# Nascondiamo tutta le grafiche della carta rettangolare
 	color_rect.hide()
 	outline.hide()
 	vbox.hide()
-	
-	# Mostriamo invece la mini-vista della torre trasparente 
-	# che rappresenta esattamente come starà nella cella (~45 px)
+
+	# Mostriamo invece la mini-vista della torre trasparente
+	# che rappresenta esattamente come stara nella cella (~45 px)
 	preview_sprite.show()
-	
+
 	if preview_sprite.texture:
 		var tex_width = preview_sprite.texture.get_size().x
-		# ~45px è la size delle nostre celle calcolata nel Grid!
+		# ~45px e la size delle nostre celle calcolata nel Grid!
 		var cell_preview_size = 45.0
 		preview_sprite.scale = Vector2.ONE * (cell_preview_size / tex_width) * 0.8
-		
+
 	# Resettiamo la scala della Control window che prima si ingrandiva con hover
 	scale = Vector2.ONE
 

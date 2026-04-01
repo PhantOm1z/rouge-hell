@@ -17,6 +17,7 @@ extends CharacterBody2D
 var current_health: float = 0.0
 var path_points: PackedVector2Array = []
 var current_path_index: int = 0
+var waypoint_reach_distance: float = 22.0
 
 func _ready() -> void:
 	add_to_group("enemies")
@@ -38,6 +39,10 @@ func setup(enemy_data: EnemyData) -> void:
 	if sprite and data.sprite_texture:
 		sprite.texture = data.sprite_texture
 		
+	# TD crowd behavior: gli enemy non devono bloccarsi tra loro.
+	collision_layer = 0
+	collision_mask = 0
+
 	current_path_index = 0
 	set_physics_process(true)
 
@@ -55,13 +60,21 @@ func _move_along_path(delta: float) -> void:
 		return
 		
 	var target_pos: Vector2 = path_points[current_path_index]
-	var dir: Vector2 = global_position.direction_to(target_pos)
-	
-	velocity = dir * data.move_speed
-	move_and_slide()
-	
-	if global_position.distance_squared_to(target_pos) < 100.0:
+	var to_target: Vector2 = target_pos - global_position
+	var reach_dist_sq := waypoint_reach_distance * waypoint_reach_distance
+
+	if to_target.length_squared() <= reach_dist_sq:
 		current_path_index += 1
+		return
+
+	# Movimento manuale: evita incastri da fisica quando gli enemy sono tanti.
+	var step := data.move_speed * delta
+	var dist := to_target.length()
+	if dist <= step:
+		global_position = target_pos
+		current_path_index += 1
+	else:
+		global_position += to_target / dist * step
 
 func take_damage(amount: float) -> void:
 	current_health -= amount
