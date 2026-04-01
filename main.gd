@@ -216,10 +216,7 @@ func _update_path_for_enemy(enemy: Node2D) -> void:
 	start_grid.y = clampi(start_grid.y, 0, grid_manager.grid_height - 1)
 	start_grid = _find_nearest_walkable_cell(start_grid)
 
-	# Verso dove va (fine della plancia in mezzo)
-	var end_grid = Vector2i(grid_manager.grid_width / 2, grid_manager.grid_height - 1)
-
-	var path_ids = grid_manager.astar.get_id_path(start_grid, end_grid)
+	var path_ids = _find_best_bottom_path(start_grid)
 	var global_path: PackedVector2Array = []
 	for id in path_ids:
 		var world_pos = global_position + Vector2(id.x * cell_size + cell_size / 2.0, id.y * cell_size + cell_size / 2.0)
@@ -232,6 +229,23 @@ func _update_path_for_enemy(enemy: Node2D) -> void:
 		# Fallback di sicurezza: se non trova path, prova ad andare verso la base.
 		if enemy.has_method("set_path_points"):
 			enemy.set_path_points(PackedVector2Array([$PlayerBase.global_position]))
+
+func _find_best_bottom_path(start_grid: Vector2i) -> Array[Vector2i]:
+	var best_path: Array[Vector2i] = []
+
+	for end_x in range(grid_manager.grid_width):
+		var end_cell := Vector2i(end_x, grid_manager.grid_height - 1)
+		if grid_manager.astar.is_point_solid(end_cell):
+			continue
+
+		var candidate_path = grid_manager.astar.get_id_path(start_grid, end_cell)
+		if candidate_path.is_empty():
+			continue
+
+		if best_path.is_empty() or candidate_path.size() < best_path.size():
+			best_path = candidate_path
+
+	return best_path
 
 func _find_nearest_walkable_cell(origin: Vector2i) -> Vector2i:
 	if not grid_manager.astar.is_point_solid(origin):

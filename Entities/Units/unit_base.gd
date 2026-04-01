@@ -145,7 +145,7 @@ func _fire_proj(dir: Vector2, custom_speed: float = -1.0) -> void:
 	if proj != null:
 		proj.global_position = global_position
 		if proj.has_method("setup"):
-			proj.setup(data.base_damage, dir, custom_speed)
+			proj.setup(data.base_damage, dir, custom_speed, data.attack_range)
 		
 		# Agiongiamo alla scena principale per evitare offset parentali
 		if proj.get_parent() == null:
