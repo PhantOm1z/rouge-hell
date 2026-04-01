@@ -23,6 +23,7 @@ func _ready() -> void:
 	Events.unit_summoned.connect(_on_unit_summoned)
 	Events.enemy_spawned.connect(_on_enemy_spawned)
 	Events.wave_started.connect(_on_wave_started)
+	Events.grid_updated.connect(_on_grid_updated)
 	
 	Events.exp_gained.connect(_on_exp_gained)
 	Events.select_draft_card.connect(_on_card_selected)
@@ -156,3 +157,30 @@ func _on_card_selected(data: UnitData) -> void:
 	var new_card = preload("res://UI/card_ui.tscn").instantiate()
 	new_card.unit_data = data
 	$CanvasLayer/HandContainer.add_child(new_card)
+
+# --- Pathfinding AI (AStarGrid2D) ---
+func _on_grid_updated() -> void:
+	# Quando viene messa o tolta una torre, ricalcola il percorso di tutti!
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		_update_path_for_enemy(enemy)
+
+func _update_path_for_enemy(enemy: Node2D) -> void:
+	if not is_instance_valid(enemy): return
+	
+	# Da dove parte (limitato nei bordi per vitare crash AStar)
+	var start_grid = _get_grid_pos(enemy.global_position)
+	start_grid.x = clampi(start_grid.x, 0, grid_manager.grid_width - 1)
+	start_grid.y = clampi(start_grid.y, 0, grid_manager.grid_height - 1)
+	
+	# Verso dove va (Fine della plancia in mezzo)
+	var end_grid = Vector2i(grid_manager.grid_width / 2, grid_manager.grid_height - 1)
+	
+	var path_ids = grid_manager.astar.get_id_path(start_grid, end_grid)
+	var global_path: PackedVector2Array = []
+	for id in path_ids:
+		var world_pos = global_position + Vector2(id.x * cell_size + cell_size/2.0, id.y * cell_size + cell_size/2.0)
+		global_path.append(world_pos)
+		
+	if global_path.size() > 0:
+		if enemy.has_method("set_path_points"):
+			enemy.set_path_points(global_path)

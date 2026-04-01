@@ -70,15 +70,41 @@ func _find_new_target() -> void:
 		attack_timer.stop()
 
 func _on_attack_timer_timeout() -> void:
-	if current_target != null and is_instance_valid(current_target):
-		# Create projectile via Object Pooling
-		# In a real setup, we'd pass 'data.projectile_scene' to a pool
-		var proj: Node2D = ObjectPool.acquire_object("base_projectile")
-		if proj and proj.has_method("setup_projectile"):
-			# Signal Up -> Let Level add it correctly so it doesn't move with the unit
-			Events.call_deferred("add_child", proj) # Safe fallback or use Event Bus correctly
-			proj.global_position = global_position
-			proj.setup_projectile(current_target, data.base_damage)
-	else:
-		# Force re-scan next frame
-		current_target = null
+	_shoot()
+
+func _shoot() -> void:
+	if current_target == null or current_target.current_health <= 0:
+		_find_new_target()
+		if current_target == null:
+			attack_timer.stop()
+			return
+			
+	match data.ability:
+		UnitData.AbilityType.NORMAL:
+			var dir = global_position.direction_to(current_target.global_position)
+			_fire_proj(dir)
+		UnitData.AbilityType.TWIN_SIDES:
+			_fire_proj(Vector2.LEFT)
+			_fire_proj(Vector2.RIGHT)
+		UnitData.AbilityType.FLAMETHROWER:
+			# Fuoco continuo simulato con altissima velocità
+			_fire_proj(Vector2.LEFT, 1500.0)
+			_fire_proj(Vector2.RIGHT, 1500.0)
+		UnitData.AbilityType.QUAKE:
+			# Area of Effect ISTANTANEO su tutto quello che è nel range
+			for area: Area2D in range_area.get_overlapping_areas():
+				if area.name == "HitBox":
+					var e = area.get_parent()
+					if e and e.has_method("take_damage"):
+						e.take_damage(data.base_damage)
+
+func _fire_proj(dir: Vector2, custom_speed: float = -1.0) -> void:
+	var proj = ObjectPool.acquire_object("base_projectile")
+	if proj != null:
+		proj.global_position = global_position
+		if proj.has_method("setup"):
+			proj.setup(data.base_damage, dir, custom_speed)
+		
+		# Agiongiamo alla scena principale per evitare offset parentali
+		if proj.get_parent() == null:
+			get_tree().current_scene.add_child(proj)

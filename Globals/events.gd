@@ -28,6 +28,7 @@ signal card_dropped(card_ui: Control, drop_pos: Vector2)
 signal card_dragged(card_ui: Control, drag_pos: Vector2)
 signal card_drag_ended(card_ui: Control)
 signal select_draft_card(unit_data: Resource)
+signal grid_updated()
 
 # --- RPG Progression ---
 signal exp_gained(amount: int)

@@ -7,6 +7,10 @@ extends Resource
 @export var unit_id: StringName = ""
 @export var display_name: String = "Unknown Unit"
 @export var footprint: Vector2i = Vector2i(1, 1)
+
+enum AbilityType { NORMAL, TWIN_SIDES, FLAMETHROWER, QUAKE }
+@export var ability: AbilityType = AbilityType.NORMAL
+
 @export var tier: int = 1
 @export var base_damage: float = 10.0
 @export var attack_speed: float = 1.0

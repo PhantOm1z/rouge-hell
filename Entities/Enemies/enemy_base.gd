@@ -19,6 +19,7 @@ var path_points: PackedVector2Array = []
 var current_path_index: int = 0
 
 func _ready() -> void:
+	add_to_group("enemies")
 	if data:
 		setup(data)
 	

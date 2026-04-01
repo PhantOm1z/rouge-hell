@@ -8,6 +8,7 @@ script = ExtResource("1")
 unit_id = &"big_tower_2x2"
 display_name = "Big Tower (2x2)"
 footprint = Vector2i(2, 2)
+ability = 2
 tier = 2
 base_damage = 25.0
 attack_speed = 0.8

@@ -5,7 +5,15 @@ var _grid_cells: Dictionary = {} # Vector2i -> Node2D
 @export var grid_width: int = 16
 @export var grid_height: int = 20
 
+var astar: AStarGrid2D = AStarGrid2D.new()
+
 func initialize_grid() -> void:
+	astar.region = Rect2i(0, 0, grid_width, grid_height)
+	astar.cell_size = Vector2(1,1)
+	astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_NEVER
+	astar.default_compute_heuristic = AStarGrid2D.HEURISTIC_MANHATTAN
+	astar.update()
+	
 	for x in range(grid_width):
 		for y in range(grid_height):
 			_grid_cells[Vector2i(x, y)] = null
@@ -16,11 +24,31 @@ func can_place_footprint(start_pos: Vector2i, footprint: Vector2i) -> bool:
 			var check_pos = start_pos + Vector2i(x, y)
 			if not is_valid_position(check_pos) or is_cell_occupied(check_pos):
 				return false
-	return true
+				
+	# Simuliamo la chiusura della strada per assicurarci che non blocchi il passaggio!
+	for x in range(footprint.x):
+		for y in range(footprint.y):
+			astar.set_point_solid(start_pos + Vector2i(x, y), true)
+			
+	# Verifichiamo se esiste ancora almeno una via da cima a fondo (es passiamo da una coordinata in alto al centro giù)
+	# Per una griglia 16x20 usiamo posizioni "sicure" dinamiche
+	var is_blocked = true
+	for start_x in range(grid_width):
+		if not astar.is_point_solid(Vector2i(start_x, 0)):
+			var path = astar.get_id_path(Vector2i(start_x, 0), Vector2i(grid_width/2, grid_height-1))
+			if path.size() > 0:
+				is_blocked = false
+				break
+				
+	# Ripristiniamo la griglia dopo il test
+	for x in range(footprint.x):
+		for y in range(footprint.y):
+			astar.set_point_solid(start_pos + Vector2i(x, y), false)
+			
+	return not is_blocked
 
 func summon_unit(grid_pos: Vector2i, unit_scene: PackedScene, unit_data: UnitData) -> void:
 	if not can_place_footprint(grid_pos, unit_data.footprint):
-		push_warning("Grid footprint occupied or invalid at %s" % str(grid_pos))
 		return
 		
 	var unit_instance: Node2D = unit_scene.instantiate()
@@ -32,7 +60,11 @@ func summon_unit(grid_pos: Vector2i, unit_scene: PackedScene, unit_data: UnitDat
 	
 	for x in range(unit_data.footprint.x):
 		for y in range(unit_data.footprint.y):
-			_grid_cells[grid_pos + Vector2i(x, y)] = unit_instance
+			var final_pos = grid_pos + Vector2i(x, y)
+			_grid_cells[final_pos] = unit_instance
+			astar.set_point_solid(final_pos, true) # Ostacolo FISICO IA
+
+	Events.grid_updated.emit()
 
 func attempt_merge(pos_a: Vector2i, pos_b: Vector2i, unit_scene: PackedScene) -> void:
 	if not is_valid_position(pos_a) or not is_valid_position(pos_b): return

@@ -8,6 +8,7 @@ script = ExtResource("1")
 unit_id = &"mega_tower_4x4"
 display_name = "Mega Tower (4x4)"
 footprint = Vector2i(4, 4)
+ability = 3
 tier = 3
 base_damage = 100.0
 attack_speed = 0.5
