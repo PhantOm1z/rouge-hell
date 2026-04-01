@@ -6,6 +6,7 @@ extends Node2D
 var cell_size: float = 0.0
 var hovered_cell: Vector2i = Vector2i(-1, -1)
 var dragged_card: Control = null
+var previous_time_scale: float = 1.0
 
 func _ready() -> void:
 	# Pool Setup automatico per caricare pallottole e nemici veloci per Android
@@ -18,8 +19,10 @@ func _ready() -> void:
 	grid_manager.initialize_grid()
 	
 	Events.card_dropped.connect(_on_card_dropped)
+	Events.card_drag_started.connect(_on_card_drag_started)
 	Events.card_dragged.connect(_on_card_dragged)
 	Events.card_drag_ended.connect(_on_card_drag_ended)
+	
 	Events.unit_summoned.connect(_on_unit_summoned)
 	Events.enemy_spawned.connect(_on_enemy_spawned)
 	Events.wave_started.connect(_on_wave_started)
@@ -50,14 +53,10 @@ func _on_pause_pressed() -> void:
 	$CanvasLayer/TopRightBox/PauseButton.text = "Resume" if get_tree().paused else "Pause"
 
 func _on_restart_pressed() -> void:
-	# Resettiamo la velocità e togliamo la pausa prima di eliminare e ricaricare la scena
 	Engine.time_scale = 1.0
 	get_tree().paused = false
-	
-	# Rilasciamo tutti gli object pool per svuotare la RAM su cellulare
 	for child in ObjectPool.get_children():
 		child.queue_free()
-	
 	get_tree().reload_current_scene()
 
 func _on_wave_started(wave_idx: int) -> void:
@@ -75,19 +74,45 @@ func _draw() -> void:
 
 	if hovered_cell != Vector2i(-1, -1) and dragged_card != null:
 		var fp = dragged_card.unit_data.footprint
-		var highlight_color = Color(0.4, 0.9, 1.0, 0.4) # Azzurrino Base (Posizionabile)
+		var highlight_color = Color(0.4, 0.9, 1.0, 0.4) # Posizionabile
 		
 		if not grid_manager.can_place_footprint(hovered_cell, fp):
-			highlight_color = Color(1.0, 0.2, 0.2, 0.4) # ROSSO: non c'è spazio sufficiente (bordi o occupato)
+			highlight_color = Color(1.0, 0.2, 0.2, 0.4) # Sbagliato
 			
 		var box_rect = Rect2(hovered_cell.x * cell_size, hovered_cell.y * cell_size, fp.x * cell_size, fp.y * cell_size)
 		draw_rect(box_rect, highlight_color, true)
+		
+		# Disegna forma specifica in base all'abilità
+		var center_pos = Vector2(hovered_cell.x * cell_size + (fp.x * cell_size)/2.0, hovered_cell.y * cell_size + (fp.y * cell_size)/2.0)
+		var ability = dragged_card.unit_data.ability
+		var range_val = dragged_card.unit_data.attack_range
+		
+		# In unit_data.gd: NORMAL=0, TWIN_SIDES=1, FLAMETHROWER=2, QUAKE=3
+		if ability == 1 or ability == 2:
+			# Entrambi sparano in linee orizzontali strette (Destra e Sinistra!)
+			var beam_color = Color(1.0, 1.0, 0.3, 0.2) # Giallastro per i proiettili base (1x1)
+			if ability == 2:
+				beam_color = Color(1.0, 0.3, 0.0, 0.3) # Arancione inteso per il Flamethrower (2x2)
+				
+			# Costruiamo il rettangolo di tiro centrato sulla torre, largo 2*Range e alto "footprint_cells"
+			var beam_rect = Rect2(center_pos.x - range_val, hovered_cell.y * cell_size, range_val * 2, fp.y * cell_size)
+			draw_rect(beam_rect, beam_color, true)
+		else:
+			# Attacchi a tutto tondo: Quake o Torri Classiche
+			var circle_color = Color(1.0, 1.0, 1.0, 0.15)
+			if ability == 3:
+				circle_color = Color(0.8, 0.2, 0.8, 0.2) # Violetto minaccioso per AoE Boss-Smasher
+			draw_circle(center_pos, range_val, circle_color)
 
 func _get_grid_pos(global_pos: Vector2) -> Vector2i:
 	var local_pos = global_pos - global_position
 	var grid_x = floori(local_pos.x / cell_size)
 	var grid_y = floori(local_pos.y / cell_size)
 	return Vector2i(grid_x, grid_y)
+
+func _on_card_drag_started(card_ui: Control) -> void:
+	previous_time_scale = Engine.time_scale
+	Engine.time_scale = 0.1 # Rallentamento tattico immediato
 
 func _on_card_dragged(card_ui: Control, drag_pos: Vector2) -> void:
 	dragged_card = card_ui
@@ -99,6 +124,7 @@ func _on_card_dragged(card_ui: Control, drag_pos: Vector2) -> void:
 func _on_card_drag_ended(card_ui: Control) -> void:
 	dragged_card = null
 	hovered_cell = Vector2i(-1, -1)
+	Engine.time_scale = previous_time_scale # Ripristiniamo la velocità di prima
 	queue_redraw()
 
 func _on_card_dropped(card_ui: Control, drop_pos: Vector2) -> void:

@@ -25,6 +25,7 @@ signal cell_selected(grid_pos: Vector2i)
 
 # --- UI / Deck Signals ---
 signal card_dropped(card_ui: Control, drop_pos: Vector2)
+signal card_drag_started(card_ui: Control)
 signal card_dragged(card_ui: Control, drag_pos: Vector2)
 signal card_drag_ended(card_ui: Control)
 signal select_draft_card(unit_data: Resource)

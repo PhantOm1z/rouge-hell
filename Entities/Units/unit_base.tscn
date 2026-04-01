@@ -23,3 +23,11 @@ shape = SubResource("CircleShape2D_1")
 
 [node name="AttackTimer" type="Timer" parent="."]
 unique_name_in_owner = true
+
+[node name="FlameBeam" type="ColorRect" parent="."]
+unique_name_in_owner = true
+visible = false
+offset_top = -22.0
+offset_right = 200.0
+offset_bottom = 22.0
+color = Color(1, 0.3, 0, 0.6)

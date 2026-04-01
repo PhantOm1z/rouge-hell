@@ -47,6 +47,7 @@ func _gui_input(event: InputEvent) -> void:
 			top_level = true # Svincola dall'HBoxContainer
 			
 			_visualize_as_tower()
+			Events.call("emit_signal", "card_drag_started", self)
 			
 		elif is_dragging and not event.is_pressed():
 			# Rilascia
