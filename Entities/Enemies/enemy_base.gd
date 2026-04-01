@@ -18,6 +18,8 @@ var current_health: float = 0.0
 var path_points: PackedVector2Array = []
 var current_path_index: int = 0
 var waypoint_reach_distance: float = 22.0
+var path_lookahead_steps: int = 3
+var lateral_blend_weight: float = 0.35
 var has_valid_path: bool = false
 var has_entered_screen_once: bool = false
 var is_eliminated: bool = false
@@ -58,6 +60,9 @@ func setup(enemy_data: EnemyData) -> void:
 	set_physics_process(true)
 
 func set_path_points(points: PackedVector2Array) -> void:
+	if _is_same_path(points):
+		return
+
 	path_points = points
 	if path_points.is_empty():
 		current_path_index = 0
@@ -67,6 +72,18 @@ func set_path_points(points: PackedVector2Array) -> void:
 	has_valid_path = true
 	current_path_index = _find_closest_waypoint_index(global_position)
 	_consume_reached_waypoints()
+
+func _is_same_path(new_points: PackedVector2Array) -> bool:
+	if not has_valid_path:
+		return false
+	if path_points.size() != new_points.size():
+		return false
+
+	for i in range(path_points.size()):
+		if path_points[i].distance_squared_to(new_points[i]) > 1.0:
+			return false
+
+	return true
 
 func _physics_process(delta: float) -> void:
 	if data == null or current_health <= 0 or is_eliminated: return
@@ -99,7 +116,16 @@ func _move_along_path(delta: float) -> void:
 		global_position = target_pos
 		current_path_index += 1
 	else:
-		global_position += (to_target / dist) * step
+		var move_dir := to_target / dist
+		var lookahead_idx := mini(current_path_index + path_lookahead_steps, path_points.size() - 1)
+		if lookahead_idx > current_path_index:
+			var lookahead_vec := path_points[lookahead_idx] - global_position
+			var lookahead_len := lookahead_vec.length()
+			if lookahead_len > 0.001:
+				var lookahead_dir := lookahead_vec / lookahead_len
+				move_dir = (move_dir * (1.0 - lateral_blend_weight) + lookahead_dir * lateral_blend_weight).normalized()
+
+		global_position += move_dir * step
 
 func _find_closest_waypoint_index(pos: Vector2) -> int:
 	var closest_index := 0
