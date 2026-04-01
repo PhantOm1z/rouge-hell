@@ -216,7 +216,7 @@ func _update_path_for_enemy(enemy: Node2D) -> void:
 	start_grid.y = clampi(start_grid.y, 0, grid_manager.grid_height - 1)
 	start_grid = _find_nearest_walkable_cell(start_grid)
 
-	var path_ids = _find_best_bottom_path(start_grid)
+	var path_ids = _find_best_path_ids(start_grid, enemy.global_position)
 	var global_path: PackedVector2Array = []
 	for id in path_ids:
 		var world_pos = global_position + Vector2(id.x * cell_size + cell_size / 2.0, id.y * cell_size + cell_size / 2.0)
@@ -225,10 +225,39 @@ func _update_path_for_enemy(enemy: Node2D) -> void:
 	if global_path.size() > 0:
 		if enemy.has_method("set_path_points"):
 			enemy.set_path_points(global_path)
-	else:
-		# Fallback di sicurezza: se non trova path, prova ad andare verso la base.
-		if enemy.has_method("set_path_points"):
-			enemy.set_path_points(PackedVector2Array([$PlayerBase.global_position]))
+
+func _find_best_path_ids(start_grid: Vector2i, enemy_world_pos: Vector2) -> Array[Vector2i]:
+	var best_path: Array[Vector2i] = []
+	var best_score: float = INF
+	var evaluated: Dictionary = {}
+
+	# 1) Prova dal punto attuale del nemico.
+	var local_path = _find_best_bottom_path(start_grid)
+	if not local_path.is_empty():
+		best_path = local_path
+		best_score = float(local_path.size())
+	evaluated[start_grid] = true
+
+	# 2) Prova anche ogni ingresso in alto: permette deviazione laterale anticipata.
+	for entry_x in range(grid_manager.grid_width):
+		var entry_cell := Vector2i(entry_x, 0)
+		if evaluated.has(entry_cell):
+			continue
+		if grid_manager.astar.is_point_solid(entry_cell):
+			continue
+
+		var candidate_path = _find_best_bottom_path(entry_cell)
+		if candidate_path.is_empty():
+			continue
+
+		var entry_world = _grid_to_world(entry_cell)
+		var approach_cost = enemy_world_pos.distance_to(entry_world) / maxf(cell_size, 1.0)
+		var score = float(candidate_path.size()) + approach_cost
+		if score < best_score:
+			best_score = score
+			best_path = candidate_path
+
+	return best_path
 
 func _find_best_bottom_path(start_grid: Vector2i) -> Array[Vector2i]:
 	var best_path: Array[Vector2i] = []
@@ -246,6 +275,9 @@ func _find_best_bottom_path(start_grid: Vector2i) -> Array[Vector2i]:
 			best_path = candidate_path
 
 	return best_path
+
+func _grid_to_world(cell: Vector2i) -> Vector2:
+	return global_position + Vector2(cell.x * cell_size + cell_size / 2.0, cell.y * cell_size + cell_size / 2.0)
 
 func _find_nearest_walkable_cell(origin: Vector2i) -> Vector2i:
 	if not grid_manager.astar.is_point_solid(origin):

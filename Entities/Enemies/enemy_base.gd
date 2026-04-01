@@ -18,6 +18,7 @@ var current_health: float = 0.0
 var path_points: PackedVector2Array = []
 var current_path_index: int = 0
 var waypoint_reach_distance: float = 22.0
+var path_lookahead_steps: int = 6
 
 func _ready() -> void:
 	add_to_group("enemies")
@@ -58,14 +59,25 @@ func _move_along_path(delta: float) -> void:
 	if current_path_index >= path_points.size():
 		_reach_base()
 		return
-		
-	var target_pos: Vector2 = path_points[current_path_index]
-	var to_target: Vector2 = target_pos - global_position
+
 	var reach_dist_sq := waypoint_reach_distance * waypoint_reach_distance
 
-	if to_target.length_squared() <= reach_dist_sq:
-		current_path_index += 1
+	# Consuma i waypoint gia' raggiunti.
+	while current_path_index < path_points.size():
+		var current_wp: Vector2 = path_points[current_path_index]
+		if global_position.distance_squared_to(current_wp) <= reach_dist_sq:
+			current_path_index += 1
+		else:
+			break
+
+	if current_path_index >= path_points.size():
+		_reach_base()
 		return
+
+	# Steering predittivo: punta qualche waypoint avanti per iniziare a curvare prima.
+	var target_index := mini(current_path_index + path_lookahead_steps, path_points.size() - 1)
+	var target_pos: Vector2 = path_points[target_index]
+	var to_target: Vector2 = target_pos - global_position
 
 	# Movimento manuale: evita incastri da fisica quando gli enemy sono tanti.
 	var step := data.move_speed * delta
@@ -74,7 +86,28 @@ func _move_along_path(delta: float) -> void:
 		global_position = target_pos
 		current_path_index += 1
 	else:
-		global_position += to_target / dist * step
+		var steer_dir := _compute_steer_direction(current_path_index)
+		if steer_dir.length_squared() <= 0.0001:
+			steer_dir = to_target / maxf(dist, 0.001)
+		global_position += steer_dir * step
+
+func _compute_steer_direction(from_index: int) -> Vector2:
+	if path_points.is_empty() or from_index >= path_points.size():
+		return Vector2.ZERO
+
+	var base_target := path_points[from_index]
+	var dir := global_position.direction_to(base_target)
+
+	var end_index := mini(from_index + path_lookahead_steps, path_points.size() - 1)
+	var weight_total := 1.0
+	for i in range(from_index + 1, end_index + 1):
+		var weight := 0.35 * float(end_index - i + 1)
+		dir += global_position.direction_to(path_points[i]) * weight
+		weight_total += weight
+
+	if dir.length_squared() <= 0.0001:
+		return Vector2.ZERO
+	return (dir / weight_total).normalized()
 
 func take_damage(amount: float) -> void:
 	current_health -= amount
