@@ -8,6 +8,10 @@ var max_travel_distance: float = -1.0
 var traveled_distance: float = 0.0
 
 func _ready() -> void:
+	collision_layer = 0
+	collision_mask = EnemyBase.HITBOX_LAYER
+	monitorable = false
+	monitoring = true
 	area_entered.connect(_on_area_entered)
 
 func setup(dmg: float, dir: Vector2, custom_speed: float = -1.0, max_distance: float = -1.0) -> void:

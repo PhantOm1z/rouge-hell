@@ -113,9 +113,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -170.0
-offset_top = -170.0
+offset_top = -210.0
 offset_right = 170.0
-offset_bottom = 170.0
+offset_bottom = 210.0
 mouse_filter = 0
 
 [node name="ModalMargin" type="MarginContainer" parent="CanvasLayer/DebugModalOverlay/ModalPanel"]
@@ -170,6 +170,25 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
 text = "La scelta viene applicata subito"
 
+[node name="EnemySeparator" type="HSeparator" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox"]
+layout_mode = 2
+
+[node name="EnemySpawnLabel" type="Label" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox"]
+layout_mode = 2
+text = "Spawn nemici random"
+
+[node name="DebugEnemyCountSpin" type="SpinBox" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox"]
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+min_value = 1.0
+max_value = 200.0
+step = 1.0
+value = 10.0
+
+[node name="DebugSpawnEnemiesButton" type="Button" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox"]
+layout_mode = 2
+text = "Spawna Nemici"
+
 [node name="HandContainer" type="HBoxContainer" parent="CanvasLayer"]
 anchors_preset = 7
 anchor_left = 0.5
@@ -184,15 +203,3 @@ grow_horizontal = 2
 grow_vertical = 0
 theme_override_constants/separation = 15
 alignment = 1
-
-[node name="CardUI1" parent="CanvasLayer/HandContainer" instance=ExtResource("6")]
-layout_mode = 2
-unit_data = ExtResource("7")
-
-[node name="CardUI2" parent="CanvasLayer/HandContainer" instance=ExtResource("6")]
-layout_mode = 2
-unit_data = ExtResource("7")
-
-[node name="CardUI3" parent="CanvasLayer/HandContainer" instance=ExtResource("6")]
-layout_mode = 2
-unit_data = ExtResource("7")

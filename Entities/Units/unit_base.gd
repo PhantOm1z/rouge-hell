@@ -46,8 +46,10 @@ func setup_unit(unit_data: UnitData, pos: Vector2i) -> void:
 		flame_beam.hide()
 
 	if range_area:
+		range_area.collision_layer = 0
+		range_area.collision_mask = EnemyBase.HITBOX_LAYER
 		range_area.monitoring = not is_passive_structure
-		range_area.monitorable = not is_passive_structure
+		range_area.monitorable = false
 		
 	if attack_timer:
 		if is_passive_structure or data.attack_speed <= 0.0:

@@ -8,8 +8,10 @@ extends Node2D
 @onready var debug_add_card_button: Button = $CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox/DebugAddCardButton
 @onready var debug_layout_select: OptionButton = $CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox/DebugLayoutSelect
 @onready var debug_close_button: Button = $CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox/HeaderRow/CloseDebugButton
+@onready var debug_enemy_count_spin: SpinBox = $CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox/DebugEnemyCountSpin
+@onready var debug_spawn_enemies_button: Button = $CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox/DebugSpawnEnemiesButton
 @export var unit_scene: PackedScene
-@export var repath_interval_seconds: float = 0.2
+@export var repath_interval_seconds: float = 0.0
 @export var path_switch_advantage_cells: int = 2
 @export var min_placeable_row: int = 3
 @export var retreat_lane_offset_cells: float = 1.2
@@ -23,8 +25,11 @@ var has_preview_obstacle: bool = false
 var preview_origin_cell: Vector2i = Vector2i(-1, -1)
 var preview_footprint: Vector2i = Vector2i.ZERO
 var enemy_locked_exit: Dictionary = {} # enemy_instance_id -> bottom exit x
+var nav_flow_next: Dictionary = {} # Vector2i -> next cell toward bottom
 var debug_addable_cards: Array[UnitData] = []
 var selected_add_card_data: UnitData = null
+var starting_hand_card_data: UnitData = preload("res://Resources/Instances/big_tower.tres") as UnitData
+var starting_hand_card_count: int = 10
 
 func _ready() -> void:
 	# Pool Setup automatico per caricare pallottole e nemici veloci per Android
@@ -58,12 +63,14 @@ func _ready() -> void:
 	debug_layout_select.item_selected.connect(_on_debug_layout_selected)
 	debug_close_button.pressed.connect(_close_debug_modal)
 	debug_backdrop.gui_input.connect(_on_debug_backdrop_gui_input)
+	debug_spawn_enemies_button.pressed.connect(_on_debug_spawn_enemies_pressed)
 
 	selected_time_scale = speeds[speed_index]
 	Engine.time_scale = selected_time_scale
 	$CanvasLayer/TopRightBox/SpeedButton.text = "Spd: %sx" % selected_time_scale
 
 	_setup_add_card_selector()
+	_setup_starting_hand()
 	_build_stage_layouts()
 	_setup_layout_selector()
 	_apply_stage_layout(0, false)
@@ -137,6 +144,35 @@ func _on_debug_backdrop_gui_input(event: InputEvent) -> void:
 	if mouse_button.pressed and mouse_button.button_index == MOUSE_BUTTON_LEFT:
 		_close_debug_modal()
 
+func _on_debug_spawn_enemies_pressed() -> void:
+	var spawn_count: int = maxi(1, int(round(debug_enemy_count_spin.value)))
+	_spawn_debug_enemies(spawn_count)
+
+func _spawn_debug_enemies(spawn_count: int) -> void:
+	if spawn_count <= 0:
+		return
+
+	var wave_manager := $WaveManager as WaveManager
+	if wave_manager == null:
+		return
+
+	var map_left_x: float = global_position.x + (cell_size * 0.5)
+	var map_right_x: float = global_position.x + (cell_size * float(grid_manager.grid_width) - cell_size * 0.5)
+	var spawn_y_min: float = global_position.y - (cell_size * 1.2)
+	var spawn_y_max: float = global_position.y - (cell_size * 0.25)
+	var debug_enemy_data: EnemyData = preload("res://Resources/enemy_data.gd").new()
+
+	for i in range(spawn_count):
+		var pooled_enemy: Node = ObjectPool.acquire_object("common_enemy")
+		var enemy := pooled_enemy as EnemyBase
+		if enemy == null:
+			continue
+
+		enemy.global_position = Vector2(randf_range(map_left_x, map_right_x), randf_range(spawn_y_min, spawn_y_max))
+		enemy.setup(debug_enemy_data)
+		Events.call_deferred("emit_signal", "enemy_spawned", enemy)
+		wave_manager.active_enemies += 1
+
 func _on_add_card_pressed() -> void:
 	if selected_add_card_data == null and not debug_addable_cards.is_empty():
 		selected_add_card_data = debug_addable_cards[0]
@@ -160,6 +196,17 @@ func _setup_add_card_selector() -> void:
 	if not debug_addable_cards.is_empty():
 		debug_add_card_type_select.select(0)
 		selected_add_card_data = debug_addable_cards[0]
+
+func _setup_starting_hand() -> void:
+	var hand := $CanvasLayer/HandContainer
+	for child in hand.get_children():
+		child.queue_free()
+
+	if starting_hand_card_data == null:
+		return
+
+	for i in range(starting_hand_card_count):
+		_on_card_selected(starting_hand_card_data)
 
 func _on_add_card_type_selected(index: int) -> void:
 	if index < 0 or index >= debug_addable_cards.size():
@@ -312,14 +359,14 @@ func _on_card_dragged(card_ui: Control, drag_pos: Vector2) -> void:
 		queue_redraw()
 
 func _on_card_drag_ended(card_ui: Control) -> void:
-	_clear_drag_preview_paths(true)
+	_clear_drag_preview_paths()
 	dragged_card = null
 	hovered_cell = Vector2i(-1, -1)
 	Engine.time_scale = selected_time_scale # Ripristina sempre la velocita selezionata
 	queue_redraw()
 
 func _on_card_dropped(card_ui: Control, drop_pos: Vector2) -> void:
-	_clear_drag_preview_paths(true)
+	_clear_drag_preview_paths()
 	var target_cell = _get_grid_pos(drop_pos)
 
 	var can_place = _is_placement_zone_allowed(target_cell, card_ui.unit_data.footprint)
@@ -338,7 +385,6 @@ func _on_card_dropped(card_ui: Control, drop_pos: Vector2) -> void:
 	Engine.time_scale = selected_time_scale
 
 func _update_drag_preview_paths(card_ui: Control, target_cell: Vector2i) -> void:
-	var had_preview := has_preview_obstacle
 	if has_preview_obstacle:
 		_set_astar_cells_solid(preview_blocked_cells, false)
 		preview_blocked_cells.clear()
@@ -347,22 +393,14 @@ func _update_drag_preview_paths(card_ui: Control, target_cell: Vector2i) -> void
 		preview_footprint = Vector2i.ZERO
 
 	if card_ui == null:
-		if had_preview:
-			_refresh_paths_for_active_enemies()
 		return
 
 	var fp: Vector2i = card_ui.unit_data.footprint
 	if not _is_placement_zone_allowed(target_cell, fp):
-		if had_preview:
-			_refresh_paths_for_active_enemies()
 		return
 	if not grid_manager.can_place_footprint(target_cell, fp):
-		if had_preview:
-			_refresh_paths_for_active_enemies()
 		return
 	if _footprint_overlaps_enemy(target_cell, fp):
-		if had_preview:
-			_refresh_paths_for_active_enemies()
 		return
 
 	preview_blocked_cells = _collect_footprint_cells(target_cell, fp)
@@ -370,9 +408,8 @@ func _update_drag_preview_paths(card_ui: Control, target_cell: Vector2i) -> void
 	has_preview_obstacle = true
 	preview_origin_cell = target_cell
 	preview_footprint = fp
-	_refresh_paths_for_active_enemies()
 
-func _clear_drag_preview_paths(refresh_paths: bool) -> void:
+func _clear_drag_preview_paths() -> void:
 	if not has_preview_obstacle:
 		return
 
@@ -381,8 +418,6 @@ func _clear_drag_preview_paths(refresh_paths: bool) -> void:
 	has_preview_obstacle = false
 	preview_origin_cell = Vector2i(-1, -1)
 	preview_footprint = Vector2i.ZERO
-	if refresh_paths:
-		_refresh_paths_for_active_enemies()
 
 func _collect_footprint_cells(start_pos: Vector2i, footprint: Vector2i) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
@@ -429,6 +464,7 @@ func _placement_keeps_all_enemy_paths(start_pos: Vector2i, footprint: Vector2i) 
 			grid_manager.astar.set_point_solid(cell, true)
 			simulated_cells.append(cell)
 
+	_rebuild_navigation_flow_field()
 	var all_ok := true
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as EnemyBase
@@ -439,14 +475,13 @@ func _placement_keeps_all_enemy_paths(start_pos: Vector2i, footprint: Vector2i) 
 		start_grid.x = clampi(start_grid.x, 0, grid_manager.grid_width - 1)
 		start_grid.y = clampi(start_grid.y, 0, grid_manager.grid_height - 1)
 		start_grid = _find_nearest_walkable_cell(start_grid)
-
-		var path_ids = _find_best_path_ids(start_grid, enemy.global_position)
-		if path_ids.is_empty():
+		if not nav_flow_next.has(start_grid):
 			all_ok = false
 			break
 
 	for rollback_cell in simulated_cells:
 		grid_manager.astar.set_point_solid(rollback_cell, false)
+	_rebuild_navigation_flow_field()
 
 	return all_ok
 
@@ -524,6 +559,7 @@ func _on_card_selected(data: UnitData) -> void:
 # --- Pathfinding AI (AStarGrid2D) ---
 func _on_grid_updated() -> void:
 	# Quando viene messa o tolta una torre, ricalcola subito il percorso di tutti.
+	_rebuild_navigation_flow_field()
 	_refresh_paths_for_active_enemies()
 	queue_redraw()
 
@@ -539,33 +575,82 @@ func _update_path_for_enemy(enemy: Node2D) -> void:
 	start_grid.y = clampi(start_grid.y, 0, grid_manager.grid_height - 1)
 	start_grid = _find_nearest_walkable_cell(start_grid)
 
-	var path_ids = _find_stable_path_ids(enemy, start_grid, enemy.global_position)
-	var global_path: PackedVector2Array = []
-	var force_path_from_start: bool = false
-	if path_ids.is_empty():
-		global_path = _build_retreat_world_path(enemy.global_position, enemy.get_instance_id())
-		force_path_from_start = not global_path.is_empty()
-	else:
-		for id in path_ids:
-			var world_pos = global_position + Vector2(id.x * cell_size + cell_size / 2.0, id.y * cell_size + cell_size / 2.0)
-			global_path.append(world_pos)
+	var path_ids: Array[Vector2i] = _build_flow_path_ids(start_grid)
+	var global_path: PackedVector2Array = PackedVector2Array()
+	for id in path_ids:
+		global_path.append(_grid_to_world(id))
 
 	var enemy_base: EnemyBase = enemy as EnemyBase
 	if enemy_base != null:
-		enemy_base.set_path_points(global_path, force_path_from_start)
+		enemy_base.set_path_points(global_path, false)
 
 func _refresh_paths_for_active_enemies() -> void:
-	var active_enemy_ids: Dictionary = {}
 	for node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as EnemyBase
 		if enemy == null or enemy.current_health <= 0:
 			continue
-		active_enemy_ids[enemy.get_instance_id()] = true
 		_update_path_for_enemy(enemy)
 
-	for enemy_id in enemy_locked_exit.keys():
-		if not active_enemy_ids.has(enemy_id):
-			enemy_locked_exit.erase(enemy_id)
+func _rebuild_navigation_flow_field() -> void:
+	nav_flow_next.clear()
+	var distance_by_cell: Dictionary = {}
+	var queue: Array[Vector2i] = []
+	var bottom_y: int = grid_manager.grid_height - 1
+	for x in range(grid_manager.grid_width):
+		var goal_cell := Vector2i(x, bottom_y)
+		if grid_manager.astar.is_point_solid(goal_cell):
+			continue
+		distance_by_cell[goal_cell] = 0
+		nav_flow_next[goal_cell] = goal_cell
+		queue.append(goal_cell)
+
+	var queue_index: int = 0
+	var neighbors: Array[Vector2i] = [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]
+	while queue_index < queue.size():
+		var current: Vector2i = queue[queue_index]
+		queue_index += 1
+		var current_dist: int = int(distance_by_cell[current])
+
+		for offset in neighbors:
+			var candidate: Vector2i = current + offset
+			if candidate.x < 0 or candidate.y < 0:
+				continue
+			if candidate.x >= grid_manager.grid_width or candidate.y >= grid_manager.grid_height:
+				continue
+			if grid_manager.astar.is_point_solid(candidate):
+				continue
+			if distance_by_cell.has(candidate):
+				continue
+
+			distance_by_cell[candidate] = current_dist + 1
+			# Calcolato "a ritroso": da candidate il prossimo step verso il goal e' current.
+			nav_flow_next[candidate] = current
+			queue.append(candidate)
+
+func _build_flow_path_ids(start_grid: Vector2i) -> Array[Vector2i]:
+	var path: Array[Vector2i] = []
+	if not nav_flow_next.has(start_grid):
+		return path
+
+	var current: Vector2i = start_grid
+	var visited: Dictionary = {}
+	var max_steps: int = grid_manager.grid_width * grid_manager.grid_height + 2
+	for i in range(max_steps):
+		path.append(current)
+		if current.y == grid_manager.grid_height - 1:
+			return path
+		if visited.has(current):
+			break
+		visited[current] = true
+		if not nav_flow_next.has(current):
+			break
+		var next_cell: Vector2i = nav_flow_next[current]
+		if next_cell == current:
+			break
+		current = next_cell
+
+	path.clear()
+	return path
 
 func _find_stable_path_ids(enemy: Node2D, start_grid: Vector2i, enemy_world_pos: Vector2) -> Array[Vector2i]:
 	var best_path := _find_best_path_ids(start_grid, enemy_world_pos)
