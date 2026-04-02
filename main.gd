@@ -1,7 +1,13 @@
 extends Node2D
 
 @onready var grid_manager: GridManager = $GridManager
-@onready var add_card_type_select: OptionButton = $CanvasLayer/TopRightBox/AddCardTypeSelect
+@onready var debug_button: Button = $CanvasLayer/TopRightBox/DebugButton
+@onready var debug_modal_overlay: Control = $CanvasLayer/DebugModalOverlay
+@onready var debug_backdrop: ColorRect = $CanvasLayer/DebugModalOverlay/Backdrop
+@onready var debug_add_card_type_select: OptionButton = $CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox/DebugAddCardTypeSelect
+@onready var debug_add_card_button: Button = $CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox/DebugAddCardButton
+@onready var debug_layout_select: OptionButton = $CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox/DebugLayoutSelect
+@onready var debug_close_button: Button = $CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox/HeaderRow/CloseDebugButton
 @export var unit_scene: PackedScene
 @export var repath_interval_seconds: float = 0.2
 @export var path_switch_advantage_cells: int = 2
@@ -46,9 +52,12 @@ func _ready() -> void:
 	$CanvasLayer/TopRightBox/SpeedButton.pressed.connect(_on_speed_pressed)
 	$CanvasLayer/TopRightBox/PauseButton.pressed.connect(_on_pause_pressed)
 	$CanvasLayer/TopRightBox/RestartButton.pressed.connect(_on_restart_pressed)
-	$CanvasLayer/TopRightBox/AddCardButton.pressed.connect(_on_add_card_pressed)
-	$CanvasLayer/TopRightBox/LayoutButton.pressed.connect(_on_layout_button_pressed)
-	add_card_type_select.item_selected.connect(_on_add_card_type_selected)
+	debug_button.pressed.connect(_on_debug_button_pressed)
+	debug_add_card_button.pressed.connect(_on_add_card_pressed)
+	debug_add_card_type_select.item_selected.connect(_on_add_card_type_selected)
+	debug_layout_select.item_selected.connect(_on_debug_layout_selected)
+	debug_close_button.pressed.connect(_close_debug_modal)
+	debug_backdrop.gui_input.connect(_on_debug_backdrop_gui_input)
 
 	selected_time_scale = speeds[speed_index]
 	Engine.time_scale = selected_time_scale
@@ -56,6 +65,7 @@ func _ready() -> void:
 
 	_setup_add_card_selector()
 	_build_stage_layouts()
+	_setup_layout_selector()
 	_apply_stage_layout(0, false)
 
 	# Dopo 3 secondi dall'avvio, la griglia chiama la prima Wave letale
@@ -80,6 +90,13 @@ var stage_layout_index: int = 0
 var stage_layout_names: Array[String] = []
 var stage_layouts: Array = []
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not debug_modal_overlay.visible:
+		return
+	if event.is_action_pressed("ui_cancel"):
+		_close_debug_modal()
+		get_viewport().set_input_as_handled()
+
 func _on_speed_pressed() -> void:
 	speed_index = (speed_index + 1) % speeds.size()
 	selected_time_scale = speeds[speed_index]
@@ -101,6 +118,25 @@ func _on_restart_pressed() -> void:
 		child.queue_free()
 	get_tree().reload_current_scene()
 
+func _on_debug_button_pressed() -> void:
+	if debug_modal_overlay.visible:
+		_close_debug_modal()
+		return
+	_open_debug_modal()
+
+func _open_debug_modal() -> void:
+	debug_modal_overlay.visible = true
+
+func _close_debug_modal() -> void:
+	debug_modal_overlay.visible = false
+
+func _on_debug_backdrop_gui_input(event: InputEvent) -> void:
+	var mouse_button := event as InputEventMouseButton
+	if mouse_button == null:
+		return
+	if mouse_button.pressed and mouse_button.button_index == MOUSE_BUTTON_LEFT:
+		_close_debug_modal()
+
 func _on_add_card_pressed() -> void:
 	if selected_add_card_data == null and not debug_addable_cards.is_empty():
 		selected_add_card_data = debug_addable_cards[0]
@@ -116,13 +152,13 @@ func _setup_add_card_selector() -> void:
 	]
 	var add_labels: Array[String] = ["Basic", "Big 2x2", "Mega 4x4", "Wall 4x1"]
 
-	add_card_type_select.clear()
+	debug_add_card_type_select.clear()
 	for i in range(debug_addable_cards.size()):
 		var option_label: String = add_labels[i] if i < add_labels.size() else debug_addable_cards[i].display_name
-		add_card_type_select.add_item(option_label, i)
+		debug_add_card_type_select.add_item(option_label, i)
 
 	if not debug_addable_cards.is_empty():
-		add_card_type_select.select(0)
+		debug_add_card_type_select.select(0)
 		selected_add_card_data = debug_addable_cards[0]
 
 func _on_add_card_type_selected(index: int) -> void:
@@ -130,11 +166,12 @@ func _on_add_card_type_selected(index: int) -> void:
 		return
 	selected_add_card_data = debug_addable_cards[index]
 
-func _on_layout_button_pressed() -> void:
-	if stage_layouts.is_empty():
+func _on_debug_layout_selected(index: int) -> void:
+	if index < 0 or index >= stage_layouts.size():
 		return
-	stage_layout_index = (stage_layout_index + 1) % stage_layouts.size()
-	_apply_stage_layout(stage_layout_index, true)
+	if index == stage_layout_index:
+		return
+	_apply_stage_layout(index, true)
 
 func _build_stage_layouts() -> void:
 	stage_layout_names = ["Layout 1", "Layout 2", "Layout 3"]
@@ -164,6 +201,14 @@ func _build_stage_layouts() -> void:
 	layout3.append_array(_cells_rect(3, 16, 10, 1))
 	stage_layouts.append(layout3)
 
+func _setup_layout_selector() -> void:
+	debug_layout_select.clear()
+	for i in range(stage_layout_names.size()):
+		debug_layout_select.add_item(stage_layout_names[i], i)
+	if stage_layout_names.is_empty():
+		return
+	debug_layout_select.select(clampi(stage_layout_index, 0, stage_layout_names.size() - 1))
+
 func _apply_stage_layout(index: int, clear_units: bool) -> void:
 	if index < 0 or index >= stage_layouts.size():
 		return
@@ -174,7 +219,8 @@ func _apply_stage_layout(index: int, clear_units: bool) -> void:
 		grid_manager.clear_all_units()
 	var cells: Array[Vector2i] = stage_layouts[index]
 	grid_manager.set_blocked_cells(cells)
-	$CanvasLayer/TopRightBox/LayoutButton.text = stage_layout_names[index]
+	if index < debug_layout_select.item_count:
+		debug_layout_select.select(index)
 	queue_redraw()
 
 func _cells_rect(x: int, y: int, w: int, h: int) -> Array[Vector2i]:

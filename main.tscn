@@ -86,19 +86,89 @@ custom_minimum_size = Vector2(70, 0)
 layout_mode = 2
 text = "Restart"
 
-[node name="AddCardTypeSelect" type="OptionButton" parent="CanvasLayer/TopRightBox"]
-custom_minimum_size = Vector2(120, 0)
+[node name="DebugButton" type="Button" parent="CanvasLayer/TopRightBox"]
+custom_minimum_size = Vector2(90, 0)
+layout_mode = 2
+text = "Debug"
+
+[node name="DebugModalOverlay" type="Control" parent="CanvasLayer"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 0
+z_index = 200
+
+[node name="Backdrop" type="ColorRect" parent="CanvasLayer/DebugModalOverlay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 0
+color = Color(0, 0, 0, 0.55)
+
+[node name="ModalPanel" type="PanelContainer" parent="CanvasLayer/DebugModalOverlay"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -170.0
+offset_top = -170.0
+offset_right = 170.0
+offset_bottom = 170.0
+mouse_filter = 0
+
+[node name="ModalMargin" type="MarginContainer" parent="CanvasLayer/DebugModalOverlay/ModalPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="ModalVBox" type="VBoxContainer" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="HeaderRow" type="HBoxContainer" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox"]
 layout_mode = 2
 
-[node name="AddCardButton" type="Button" parent="CanvasLayer/TopRightBox"]
-custom_minimum_size = Vector2(85, 0)
+[node name="TitleLabel" type="Label" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox/HeaderRow"]
 layout_mode = 2
-text = "Add"
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "Debug"
 
-[node name="LayoutButton" type="Button" parent="CanvasLayer/TopRightBox"]
-custom_minimum_size = Vector2(85, 0)
+[node name="CloseDebugButton" type="Button" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox/HeaderRow"]
 layout_mode = 2
-text = "Layout: 1"
+text = "Chiudi"
+
+[node name="AddCardLabel" type="Label" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox"]
+layout_mode = 2
+text = "Carta da aggiungere"
+
+[node name="DebugAddCardTypeSelect" type="OptionButton" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox"]
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+
+[node name="DebugAddCardButton" type="Button" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox"]
+layout_mode = 2
+text = "Aggiungi Carta"
+
+[node name="LayoutSeparator" type="HSeparator" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox"]
+layout_mode = 2
+
+[node name="LayoutLabel" type="Label" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox"]
+layout_mode = 2
+text = "Layout stage"
+
+[node name="DebugLayoutSelect" type="OptionButton" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox"]
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+
+[node name="LayoutHint" type="Label" parent="CanvasLayer/DebugModalOverlay/ModalPanel/ModalMargin/ModalVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
+text = "La scelta viene applicata subito"
 
 [node name="HandContainer" type="HBoxContainer" parent="CanvasLayer"]
 anchors_preset = 7
