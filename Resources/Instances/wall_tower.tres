@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="UnitData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://Resources/unit_data.gd" id="1"]
+[ext_resource type="Texture2D" uid="uid://c6hwmdsqe7jof" path="res://icon.svg" id="2"]
+
+[resource]
+script = ExtResource("1")
+unit_id = &"wall_tower_4x1"
+display_name = "Wall (4x1)"
+footprint = Vector2i(4, 1)
+ability = 4
+tier = 1
+base_damage = 0.0
+attack_speed = 0.0
+attack_range = 0.0
+sprite_texture = ExtResource("2")

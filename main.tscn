@@ -68,31 +68,35 @@ offset_top = 20.0
 offset_right = -20.0
 offset_bottom = 70.0
 grow_horizontal = 0
-theme_override_constants/separation = 10
+theme_override_constants/separation = 5
 alignment = 2
 
 [node name="SpeedButton" type="Button" parent="CanvasLayer/TopRightBox"]
-custom_minimum_size = Vector2(80, 0)
+custom_minimum_size = Vector2(70, 0)
 layout_mode = 2
 text = "Spd: 1x"
 
 [node name="PauseButton" type="Button" parent="CanvasLayer/TopRightBox"]
-custom_minimum_size = Vector2(80, 0)
+custom_minimum_size = Vector2(70, 0)
 layout_mode = 2
 text = "Pause"
 
 [node name="RestartButton" type="Button" parent="CanvasLayer/TopRightBox"]
-custom_minimum_size = Vector2(80, 0)
+custom_minimum_size = Vector2(70, 0)
 layout_mode = 2
 text = "Restart"
 
-[node name="AddCardButton" type="Button" parent="CanvasLayer/TopRightBox"]
-custom_minimum_size = Vector2(110, 0)
+[node name="AddCardTypeSelect" type="OptionButton" parent="CanvasLayer/TopRightBox"]
+custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
-text = "Add Card"
+
+[node name="AddCardButton" type="Button" parent="CanvasLayer/TopRightBox"]
+custom_minimum_size = Vector2(85, 0)
+layout_mode = 2
+text = "Add"
 
 [node name="LayoutButton" type="Button" parent="CanvasLayer/TopRightBox"]
-custom_minimum_size = Vector2(110, 0)
+custom_minimum_size = Vector2(85, 0)
 layout_mode = 2
 text = "Layout: 1"
 

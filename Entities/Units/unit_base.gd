@@ -16,6 +16,7 @@ extends Node2D
 var grid_position: Vector2i = Vector2i.ZERO
 var current_target: EnemyBase = null
 var current_level: int = 1
+var is_passive_structure: bool = false
 
 # -- Variabili per Flamethrower --
 var is_flaming: bool = false
@@ -29,19 +30,32 @@ func _ready() -> void:
 func setup_unit(unit_data: UnitData, pos: Vector2i) -> void:
 	data = unit_data
 	grid_position = pos
+	is_passive_structure = data.ability == UnitData.AbilityType.WALL
 	
 	if sprite and data.sprite_texture:
 		sprite.texture = data.sprite_texture
 	
 	if collision_shape and collision_shape.shape is CircleShape2D:
-		(collision_shape.shape as CircleShape2D).radius = data.attack_range
+		if is_passive_structure:
+			(collision_shape.shape as CircleShape2D).radius = 1.0
+		else:
+			(collision_shape.shape as CircleShape2D).radius = data.attack_range
 	
 	if flame_beam: # Il lanciafiamme arriva quanto il raggio di tiro
 		flame_beam.size.x = data.attack_range
 		flame_beam.hide()
+
+	if range_area:
+		range_area.monitoring = not is_passive_structure
+		range_area.monitorable = not is_passive_structure
 		
 	if attack_timer:
-		attack_timer.wait_time = 1.0 / data.attack_speed
+		if is_passive_structure or data.attack_speed <= 0.0:
+			attack_timer.stop()
+			attack_timer.paused = true
+		else:
+			attack_timer.paused = false
+			attack_timer.wait_time = 1.0 / data.attack_speed
 		if not attack_timer.timeout.is_connected(_on_attack_timer_timeout):
 			attack_timer.timeout.connect(_on_attack_timer_timeout)
 
@@ -50,6 +64,8 @@ func get_unit_data() -> UnitData:
 
 func _physics_process(delta: float) -> void:
 	if data == null: return
+	if is_passive_structure:
+		return
 	
 	# Logica danni lanciafiamme (Continuo per X secondi su un solo lato)
 	if is_flaming:
@@ -77,6 +93,12 @@ func _physics_process(delta: float) -> void:
 			attack_timer.start()
 
 func _find_new_target() -> void:
+	if is_passive_structure:
+		current_target = null
+		if attack_timer:
+			attack_timer.stop()
+		return
+
 	current_target = null
 	var enemies_in_range: Array[Area2D] = range_area.get_overlapping_areas()
 	
@@ -93,6 +115,8 @@ func _find_new_target() -> void:
 		attack_timer.stop()
 
 func _on_attack_timer_timeout() -> void:
+	if is_passive_structure:
+		return
 	_shoot()
 
 func _shoot() -> void:
@@ -118,6 +142,8 @@ func _shoot() -> void:
 					var e = area.get_parent()
 					if e and e.has_method("take_damage"):
 						e.take_damage(data.base_damage)
+		UnitData.AbilityType.WALL:
+			return
 
 func _start_flamethrower() -> void:
 	is_flaming = true

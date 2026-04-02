@@ -8,7 +8,7 @@ extends Resource
 @export var display_name: String = "Unknown Unit"
 @export var footprint: Vector2i = Vector2i(1, 1)
 
-enum AbilityType { NORMAL, TWIN_SIDES, FLAMETHROWER, QUAKE }
+enum AbilityType { NORMAL, TWIN_SIDES, FLAMETHROWER, QUAKE, WALL }
 @export var ability: AbilityType = AbilityType.NORMAL
 
 @export var tier: int = 1

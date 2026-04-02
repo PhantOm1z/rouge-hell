@@ -59,7 +59,7 @@ func setup(enemy_data: EnemyData) -> void:
 		health_bar.show()
 	set_physics_process(true)
 
-func set_path_points(points: PackedVector2Array) -> void:
+func set_path_points(points: PackedVector2Array, force_from_start: bool = false) -> void:
 	if _is_same_path(points):
 		return
 
@@ -70,7 +70,10 @@ func set_path_points(points: PackedVector2Array) -> void:
 		return
 
 	has_valid_path = true
-	current_path_index = _find_closest_waypoint_index(global_position)
+	if force_from_start:
+		current_path_index = 0
+	else:
+		current_path_index = _find_closest_waypoint_index(global_position)
 	_consume_reached_waypoints()
 
 func _is_same_path(new_points: PackedVector2Array) -> bool:

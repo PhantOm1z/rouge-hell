@@ -1,9 +1,12 @@
 extends Node2D
 
 @onready var grid_manager: GridManager = $GridManager
+@onready var add_card_type_select: OptionButton = $CanvasLayer/TopRightBox/AddCardTypeSelect
 @export var unit_scene: PackedScene
 @export var repath_interval_seconds: float = 0.2
 @export var path_switch_advantage_cells: int = 2
+@export var min_placeable_row: int = 3
+@export var retreat_lane_offset_cells: float = 1.2
 
 var cell_size: float = 0.0
 var hovered_cell: Vector2i = Vector2i(-1, -1)
@@ -14,6 +17,8 @@ var has_preview_obstacle: bool = false
 var preview_origin_cell: Vector2i = Vector2i(-1, -1)
 var preview_footprint: Vector2i = Vector2i.ZERO
 var enemy_locked_exit: Dictionary = {} # enemy_instance_id -> bottom exit x
+var debug_addable_cards: Array[UnitData] = []
+var selected_add_card_data: UnitData = null
 
 func _ready() -> void:
 	# Pool Setup automatico per caricare pallottole e nemici veloci per Android
@@ -43,11 +48,13 @@ func _ready() -> void:
 	$CanvasLayer/TopRightBox/RestartButton.pressed.connect(_on_restart_pressed)
 	$CanvasLayer/TopRightBox/AddCardButton.pressed.connect(_on_add_card_pressed)
 	$CanvasLayer/TopRightBox/LayoutButton.pressed.connect(_on_layout_button_pressed)
+	add_card_type_select.item_selected.connect(_on_add_card_type_selected)
 
 	selected_time_scale = speeds[speed_index]
 	Engine.time_scale = selected_time_scale
 	$CanvasLayer/TopRightBox/SpeedButton.text = "Spd: %sx" % selected_time_scale
 
+	_setup_add_card_selector()
 	_build_stage_layouts()
 	_apply_stage_layout(0, false)
 
@@ -95,8 +102,33 @@ func _on_restart_pressed() -> void:
 	get_tree().reload_current_scene()
 
 func _on_add_card_pressed() -> void:
-	# Debug: aggiunge una carta Big Tower ogni volta che premi il bottone.
-	_on_card_selected(preload("res://Resources/Instances/big_tower.tres"))
+	if selected_add_card_data == null and not debug_addable_cards.is_empty():
+		selected_add_card_data = debug_addable_cards[0]
+	if selected_add_card_data != null:
+		_on_card_selected(selected_add_card_data)
+
+func _setup_add_card_selector() -> void:
+	debug_addable_cards = [
+		preload("res://Resources/Instances/basic_tower.tres") as UnitData,
+		preload("res://Resources/Instances/big_tower.tres") as UnitData,
+		preload("res://Resources/Instances/mega_tower.tres") as UnitData,
+		preload("res://Resources/Instances/wall_tower.tres") as UnitData
+	]
+	var add_labels: Array[String] = ["Basic", "Big 2x2", "Mega 4x4", "Wall 4x1"]
+
+	add_card_type_select.clear()
+	for i in range(debug_addable_cards.size()):
+		var option_label: String = add_labels[i] if i < add_labels.size() else debug_addable_cards[i].display_name
+		add_card_type_select.add_item(option_label, i)
+
+	if not debug_addable_cards.is_empty():
+		add_card_type_select.select(0)
+		selected_add_card_data = debug_addable_cards[0]
+
+func _on_add_card_type_selected(index: int) -> void:
+	if index < 0 or index >= debug_addable_cards.size():
+		return
+	selected_add_card_data = debug_addable_cards[index]
 
 func _on_layout_button_pressed() -> void:
 	if stage_layouts.is_empty():
@@ -184,7 +216,7 @@ func _draw() -> void:
 		var fp = dragged_card.unit_data.footprint
 		var highlight_color = Color(0.4, 0.9, 1.0, 0.4) # Posizionabile
 
-		var can_place_here := grid_manager.can_place_footprint(hovered_cell, fp)
+		var can_place_here: bool = _is_placement_zone_allowed(hovered_cell, fp) and grid_manager.can_place_footprint(hovered_cell, fp)
 		if has_preview_obstacle and hovered_cell == preview_origin_cell and fp == preview_footprint:
 			can_place_here = true
 
@@ -244,7 +276,9 @@ func _on_card_dropped(card_ui: Control, drop_pos: Vector2) -> void:
 	_clear_drag_preview_paths(true)
 	var target_cell = _get_grid_pos(drop_pos)
 
-	var can_place = grid_manager.can_place_footprint(target_cell, card_ui.unit_data.footprint)
+	var can_place = _is_placement_zone_allowed(target_cell, card_ui.unit_data.footprint)
+	if can_place:
+		can_place = grid_manager.can_place_footprint(target_cell, card_ui.unit_data.footprint)
 	if can_place:
 		can_place = _placement_keeps_all_enemy_paths(target_cell, card_ui.unit_data.footprint)
 
@@ -272,6 +306,10 @@ func _update_drag_preview_paths(card_ui: Control, target_cell: Vector2i) -> void
 		return
 
 	var fp: Vector2i = card_ui.unit_data.footprint
+	if not _is_placement_zone_allowed(target_cell, fp):
+		if had_preview:
+			_refresh_paths_for_active_enemies()
+		return
 	if not grid_manager.can_place_footprint(target_cell, fp):
 		if had_preview:
 			_refresh_paths_for_active_enemies()
@@ -315,6 +353,17 @@ func _collect_footprint_cells(start_pos: Vector2i, footprint: Vector2i) -> Array
 func _set_astar_cells_solid(cells: Array[Vector2i], is_solid: bool) -> void:
 	for cell in cells:
 		grid_manager.astar.set_point_solid(cell, is_solid)
+
+func _is_placement_zone_allowed(start_pos: Vector2i, footprint: Vector2i) -> bool:
+	if start_pos.y < min_placeable_row:
+		return false
+	if start_pos.x < 0 or start_pos.y < 0:
+		return false
+	if start_pos.x + footprint.x > grid_manager.grid_width:
+		return false
+	if start_pos.y + footprint.y > grid_manager.grid_height:
+		return false
+	return true
 
 func _placement_keeps_all_enemy_paths(start_pos: Vector2i, footprint: Vector2i) -> bool:
 	# Non permettere placement sopra nemici vivi: evita soft-lock e stalli.
@@ -378,10 +427,16 @@ func _on_unit_summoned(grid_pos: Vector2i, unit: Node2D) -> void:
 
 	var sprite = unit.get_node("%Sprite2D")
 	if sprite and sprite.texture:
+		var tower := unit as UnitBase
 		var tex_size = sprite.texture.get_size()
-		# Lo scaliamo rispetto al lato minore del rettangolo o semplicemente il minimo dei due scale
-		var max_side = min(fp.x, fp.y)
-		sprite.scale = Vector2(1, 1) * (cell_size * max_side / tex_size.x) * 0.8
+		if tower != null and tower.data != null and tower.data.ability == UnitData.AbilityType.WALL:
+			var sx: float = (cell_size * float(fp.x) / maxf(tex_size.x, 1.0)) * 0.8
+			var sy: float = (cell_size * float(fp.y) / maxf(tex_size.y, 1.0)) * 0.8
+			sprite.scale = Vector2(sx, sy)
+		else:
+			# Lo scaliamo rispetto al lato minore del rettangolo o semplicemente il minimo dei due scale
+			var max_side = min(fp.x, fp.y)
+			sprite.scale = Vector2(1, 1) * (cell_size * max_side / tex_size.x) * 0.8
 
 func _on_enemy_spawned(enemy: Node2D) -> void:
 	if enemy.get_parent() == null:
@@ -440,12 +495,18 @@ func _update_path_for_enemy(enemy: Node2D) -> void:
 
 	var path_ids = _find_stable_path_ids(enemy, start_grid, enemy.global_position)
 	var global_path: PackedVector2Array = []
-	for id in path_ids:
-		var world_pos = global_position + Vector2(id.x * cell_size + cell_size / 2.0, id.y * cell_size + cell_size / 2.0)
-		global_path.append(world_pos)
+	var force_path_from_start: bool = false
+	if path_ids.is_empty():
+		global_path = _build_retreat_world_path(enemy.global_position, enemy.get_instance_id())
+		force_path_from_start = not global_path.is_empty()
+	else:
+		for id in path_ids:
+			var world_pos = global_position + Vector2(id.x * cell_size + cell_size / 2.0, id.y * cell_size + cell_size / 2.0)
+			global_path.append(world_pos)
 
-	if enemy.has_method("set_path_points"):
-		enemy.set_path_points(global_path)
+	var enemy_base: EnemyBase = enemy as EnemyBase
+	if enemy_base != null:
+		enemy_base.set_path_points(global_path, force_path_from_start)
 
 func _refresh_paths_for_active_enemies() -> void:
 	var active_enemy_ids: Dictionary = {}
@@ -463,7 +524,6 @@ func _refresh_paths_for_active_enemies() -> void:
 func _find_stable_path_ids(enemy: Node2D, start_grid: Vector2i, enemy_world_pos: Vector2) -> Array[Vector2i]:
 	var best_path := _find_best_path_ids(start_grid, enemy_world_pos)
 	if best_path.is_empty():
-		enemy_locked_exit.erase(enemy.get_instance_id())
 		return best_path
 
 	var enemy_id := enemy.get_instance_id()
@@ -502,6 +562,90 @@ func _find_path_to_bottom_exit(start_grid: Vector2i, end_x: int) -> Array[Vector
 		return []
 
 	return grid_manager.astar.get_id_path(start_grid, end_cell)
+
+func _get_retreat_lane_y() -> float:
+	return global_position.y + (cell_size * 0.5) - (cell_size * retreat_lane_offset_cells)
+
+func _build_retreat_world_path(enemy_world_pos: Vector2, enemy_id: int) -> PackedVector2Array:
+	var best_world_path: PackedVector2Array = PackedVector2Array()
+	var best_score: float = INF
+	var best_goal_x := -1
+
+	var locked_goal_x := -1
+	if enemy_locked_exit.has(enemy_id):
+		locked_goal_x = int(enemy_locked_exit[enemy_id])
+
+	var locked_world_path: PackedVector2Array = PackedVector2Array()
+	var locked_score: float = INF
+
+	for entry_x in range(grid_manager.grid_width):
+		var entry_cell := Vector2i(entry_x, 0)
+		if grid_manager.astar.is_point_solid(entry_cell):
+			continue
+
+		var entry_path := _find_best_bottom_path(entry_cell)
+		if entry_path.is_empty():
+			continue
+
+		var candidate_world := _build_world_path_via_entry(enemy_world_pos, entry_x, entry_path)
+		if candidate_world.is_empty():
+			continue
+
+		var score: float = _score_world_path(enemy_world_pos, candidate_world)
+		var goal_x: int = entry_path[entry_path.size() - 1].x
+
+		if goal_x == locked_goal_x and score < locked_score:
+			locked_score = score
+			locked_world_path = candidate_world
+
+		if score < best_score:
+			best_score = score
+			best_world_path = candidate_world
+			best_goal_x = goal_x
+
+	if best_world_path.is_empty():
+		return best_world_path
+
+	if not locked_world_path.is_empty():
+		var switch_margin := float(path_switch_advantage_cells) * cell_size
+		if locked_score <= best_score + switch_margin:
+			return locked_world_path
+
+	enemy_locked_exit[enemy_id] = best_goal_x
+	return best_world_path
+
+func _build_world_path_via_entry(enemy_world_pos: Vector2, entry_x: int, entry_path: Array[Vector2i]) -> PackedVector2Array:
+	var result: PackedVector2Array = PackedVector2Array()
+	var retreat_lane_y: float = _get_retreat_lane_y()
+	var min_world_x: float = global_position.x + (cell_size * 0.5)
+	var max_world_x: float = global_position.x + (cell_size * (float(grid_manager.grid_width) - 0.5))
+	var retreat_up_x: float = clampf(enemy_world_pos.x, min_world_x, max_world_x)
+	var retreat_up_world: Vector2 = Vector2(retreat_up_x, retreat_lane_y)
+	var retreat_world := Vector2(global_position.x + (float(entry_x) * cell_size) + (cell_size * 0.5), _get_retreat_lane_y())
+	var entry_world := _grid_to_world(Vector2i(entry_x, 0))
+	if result.is_empty() or result[result.size() - 1].distance_squared_to(retreat_up_world) > 1.0:
+		result.append(retreat_up_world)
+	if result.is_empty() or result[result.size() - 1].distance_squared_to(retreat_world) > 1.0:
+		result.append(retreat_world)
+	if result.is_empty() or result[result.size() - 1].distance_squared_to(entry_world) > 1.0:
+		result.append(entry_world)
+
+	for cell in entry_path:
+		var world_point: Vector2 = _grid_to_world(cell)
+		if result.is_empty() or result[result.size() - 1].distance_squared_to(world_point) > 1.0:
+			result.append(world_point)
+
+	return result
+
+func _score_world_path(origin: Vector2, path: PackedVector2Array) -> float:
+	if path.is_empty():
+		return INF
+
+	var score := origin.distance_to(path[0])
+	for i in range(path.size() - 1):
+		score += path[i].distance_to(path[i + 1])
+
+	return score
 
 func _find_best_path_ids(start_grid: Vector2i, enemy_world_pos: Vector2) -> Array[Vector2i]:
 	var best_path := _find_best_bottom_path(start_grid)

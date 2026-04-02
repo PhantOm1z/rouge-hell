@@ -24,9 +24,9 @@ ObjectPool="*res://Systems/object_pool.gd"
 
 window/size/viewport_width=720
 window/size/viewport_height=1280
+window/size/resizable=false
 window/size/window_width_override=360
 window/size/window_height_override=640
-window/size/resizable=false
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep_width"
 window/handheld/orientation=1

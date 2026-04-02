@@ -35,7 +35,10 @@ func setup(data: UnitData) -> void:
 	if label:
 		label.text = data.display_name
 	if desc_label:
-		desc_label.text = "Torre Lv.%d\nDanni: %d\nVelocita: %.1f" % [data.tier, int(data.base_damage), data.attack_speed]
+		if data.ability == UnitData.AbilityType.WALL:
+			desc_label.text = "Muro Lv.%d\nBlocca i nemici\nNon attacca" % [data.tier]
+		else:
+			desc_label.text = "Torre Lv.%d\nDanni: %d\nVelocita: %.1f" % [data.tier, int(data.base_damage), data.attack_speed]
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch and event.is_pressed():
